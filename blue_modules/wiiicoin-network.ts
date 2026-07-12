@@ -25,9 +25,11 @@ export const WIIICOIN_DERIVATION_PATHS = {
   nativeSegwit: "m/84'/9999'/0'",
 } as const;
 
+// The current ElectrumX service is exposed as plain TCP. Add an SSL endpoint
+// before production distribution if transport encryption is required.
 export const WIIICOIN_ELECTRUM_SERVER = {
   host: 'wiiicoin.io',
-  ssl: 50002,
+  tcp: 50001,
 } as const;
 
 /**
