@@ -1,20 +1,19 @@
 <resources>
-    <string name="app_name">BlueWallet</string>
+    <string name="app_name">Wiiiwallet</string>
     <string name="loading">Loading...</string>
     <string name="last_updated">Last Updated</string>
     <string name="from">From</string>
     
-    <!-- Market Widget -->
-    <string name="market_widget_name">Bitcoin Market</string>
-    <string name="market_widget_description">View the latest Bitcoin market data including price, satoshi rate, and next block fee.</string>
+    <!-- Market widgets remain disabled for release until a Wiiicoin price source is configured. -->
+    <string name="market_widget_name">Wiiiwallet Market</string>
+    <string name="market_widget_description">Market information for Wiiiwallet</string>
     <string name="market_title">Market</string>
     <string name="market_next_block">Next Block</string>
-    <string name="market_sats_label">Sats/%s</string>
+    <string name="market_sats_label">Units/%s</string>
     <string name="market_price">Price</string>
     
-    <!-- Bitcoin Price Widget -->
-    <string name="bitcoin_price_widget_name">Bitcoin Price</string>
-    <string name="bitcoin_price_widget_description">View the latest Bitcoin price in your preferred currency</string>
+    <string name="bitcoin_price_widget_name">Wiiicoin Price</string>
+    <string name="bitcoin_price_widget_description">View Wiiicoin price information when a price source is configured</string>
     <string name="offline">Offline</string>
     <string name="price_from">From:</string>
     <string name="price_label">Price</string>
@@ -22,7 +21,6 @@
     <string name="loading_placeholder">%1$s</string>
     <string name="error_placeholder">%1$s</string>
     
-    <!-- Settings Preferences -->
     <string name="settings_title">Settings</string>
     <string name="settings_report_issue_title">Report Issue</string>
     <string name="settings_report_issue_footer">Provide this Unique ID when reporting an issue</string>
