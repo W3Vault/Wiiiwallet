@@ -77,6 +77,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Upload smoke-test result
+        if: always() && steps.live-test.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiicoin-smoke-result
+          path: wiiicoin-smoke-result.json
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Stop after live-test failure
         if: steps.live-test.outcome == 'failure'
         run: exit 1
@@ -103,15 +112,6 @@ jobs:
       - name: Stop after Android build failure
         if: steps.android-build.outcome == 'failure'
         run: exit 1
-
-      - name: Upload smoke-test result
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiiicoin-smoke-result
-          path: wiiicoin-smoke-result.json
-          if-no-files-found: warn
-          retention-days: 7
 
       - name: Upload Android APK
         if: steps.android-build.outcome == 'success'
