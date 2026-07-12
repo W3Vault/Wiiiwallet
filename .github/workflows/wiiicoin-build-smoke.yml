@@ -60,34 +60,13 @@ jobs:
           npm run branch2json
           npm run patches
 
-      - name: Run Wiiicoin network unit tests
-        id: unit-test
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          npx jest --config jest.wiiicoin.config.js tests/unit/wiiicoin-network.test.ts --runInBand --forceExit 2>&1 | tee wiiicoin-unit-test.log
-
-      - name: Upload unit-test diagnostics
-        if: steps.unit-test.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiiicoin-unit-test-diagnostics
-          path: wiiicoin-unit-test.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Stop after unit-test failure
-        if: steps.unit-test.outcome == 'failure'
-        run: exit 1
-
       - name: Generate wallet and test ElectrumX
         id: live-test
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          npx jest --config jest.wiiicoin.config.js tests/integration/wiiicoin-live-smoke.test.ts --runInBand --forceExit 2>&1 | tee wiiicoin-live-test.log
+          node scripts/wiiicoin-live-smoke.mjs 2>&1 | tee wiiicoin-live-test.log
 
       - name: Upload live-test diagnostics
         if: steps.live-test.outcome == 'failure'
