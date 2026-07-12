@@ -1,7 +1,7 @@
 import assert from 'assert/strict';
 import { createHash } from 'crypto';
 import fs from 'fs';
-import tls from 'tls';
+import net from 'net';
 
 import BIP32Factory from 'bip32';
 import * as bip39 from 'bip39';
@@ -15,7 +15,7 @@ const ECPair = ECPairFactory(ecc);
 bitcoin.initEccLib(ecc);
 
 const RESULT_PATH = 'wiiicoin-smoke-result.json';
-const ELECTRUM = { host: 'wiiicoin.io', ssl: 50002 };
+const ELECTRUM = { host: 'wiiicoin.io', tcp: 50001 };
 const DERIVATION_PATH = "m/44'/9999'/0'/0/0";
 const WIIICOIN_NETWORK = {
   messagePrefix: '\x18Wiiicoin Signed Message:\n',
@@ -39,12 +39,10 @@ class ElectrumRpc {
 
   async connect() {
     await new Promise((resolve, reject) => {
-      const socket = tls.connect(
+      const socket = net.connect(
         {
           host: ELECTRUM.host,
-          port: ELECTRUM.ssl,
-          servername: ELECTRUM.host,
-          rejectUnauthorized: false,
+          port: ELECTRUM.tcp,
         },
         resolve,
       );
@@ -163,7 +161,8 @@ async function createAndBroadcastLegacyTransaction({ rpc, keyPair, sourceAddress
 
 const result = {
   generatedAt: new Date().toISOString(),
-  electrum: `${ELECTRUM.host}:${ELECTRUM.ssl}`,
+  electrum: `${ELECTRUM.host}:${ELECTRUM.tcp}`,
+  electrumTransport: 'tcp',
   derivationPath: DERIVATION_PATH,
   transactionTest: 'not attempted',
 };
