@@ -33,6 +33,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Install JavaScript dependencies without Git prepare scripts
         id: npm-install
         continue-on-error: true
@@ -90,7 +93,7 @@ jobs:
         if: steps.live-test.outcome == 'failure'
         run: exit 1
 
-      - name: Build Android debug APK
+      - name: Build Android arm64 debug APK
         id: android-build
         continue-on-error: true
         working-directory: android
@@ -98,7 +101,12 @@ jobs:
         run: |
           set -o pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../android-build.log
+          ./gradlew assembleDebug \
+            -PreactNativeArchitectures=arm64-v8a \
+            --build-cache \
+            --parallel \
+            --no-daemon \
+            --stacktrace 2>&1 | tee ../android-build.log
 
       - name: Upload Android build diagnostics
         if: steps.android-build.outcome == 'failure'
@@ -117,7 +125,7 @@ jobs:
         if: steps.android-build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Wiiiwallet-android-debug
+          name: Wiiiwallet-android-arm64-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
