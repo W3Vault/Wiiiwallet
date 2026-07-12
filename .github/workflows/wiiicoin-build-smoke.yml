@@ -66,7 +66,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx jest tests/unit/wiiicoin-network.test.ts --runInBand --forceExit 2>&1 | tee wiiicoin-unit-test.log
+          npx jest --config jest.wiiicoin.config.js tests/unit/wiiicoin-network.test.ts --runInBand --forceExit 2>&1 | tee wiiicoin-unit-test.log
 
       - name: Upload unit-test diagnostics
         if: steps.unit-test.outcome == 'failure'
@@ -82,13 +82,48 @@ jobs:
         run: exit 1
 
       - name: Generate wallet and test ElectrumX
-        run: npx jest tests/integration/wiiicoin-live-smoke.test.ts --runInBand --forceExit
+        id: live-test
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npx jest --config jest.wiiicoin.config.js tests/integration/wiiicoin-live-smoke.test.ts --runInBand --forceExit 2>&1 | tee wiiicoin-live-test.log
+
+      - name: Upload live-test diagnostics
+        if: steps.live-test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiicoin-live-test-diagnostics
+          path: wiiicoin-live-test.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after live-test failure
+        if: steps.live-test.outcome == 'failure'
+        run: exit 1
 
       - name: Build Android debug APK
+        id: android-build
+        continue-on-error: true
         working-directory: android
+        shell: bash
         run: |
+          set -o pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../android-build.log
+
+      - name: Upload Android build diagnostics
+        if: steps.android-build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-diagnostics
+          path: android-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after Android build failure
+        if: steps.android-build.outcome == 'failure'
+        run: exit 1
 
       - name: Upload smoke-test result
         if: always()
@@ -100,7 +135,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Android APK
-        if: success()
+        if: steps.android-build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: Wiiiwallet-android-debug
