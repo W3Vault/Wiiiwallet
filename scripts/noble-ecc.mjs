@@ -19,8 +19,11 @@ function pointFromBytes(point) {
 }
 
 function privateAdd(privateKey, tweak) {
-  const p = secretKeyToScalar(typeof privateKey === 'string' ? hexToBytes(privateKey) : privateKey);
-  const t = secretKeyToScalar(typeof tweak === 'string' ? hexToBytes(tweak) : tweak);
+  const privateKeyBytes = typeof privateKey === 'string' ? hexToBytes(privateKey) : privateKey;
+  const tweakBytes = typeof tweak === 'string' ? hexToBytes(tweak) : tweak;
+  const p = secretKeyToScalar(privateKeyBytes);
+  const t = bytesToNumberBE(tweakBytes);
+  if (t >= CURVE_N) throw new Error('Invalid private-key tweak');
   return numberToBytesBE(mod(p + t, CURVE_N));
 }
 
@@ -31,7 +34,10 @@ function privateNegate(privateKey) {
 
 function pointAddScalar(point, tweak, compressed = true) {
   const P = typeof point === 'string' ? necc.Point.fromHex(point) : pointFromBytes(point);
-  const t = secretKeyToScalar(typeof tweak === 'string' ? hexToBytes(tweak) : tweak);
+  const tweakBytes = typeof tweak === 'string' ? hexToBytes(tweak) : tweak;
+  const t = bytesToNumberBE(tweakBytes);
+  if (t >= CURVE_N) throw new Error('Invalid point tweak');
+  if (t === 0n) return P.toBytes(compressed);
   const Q = P.add(necc.Point.BASE.multiply(t));
   if (Q.is0()) throw new Error('Tweaked point at infinity');
   return Q.toBytes(compressed);
