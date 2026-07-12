@@ -1,19 +1,28 @@
+import BIP32Factory from 'bip32';
+
+import ecc from '../../blue_modules/noble_ecc';
+import { WIIICOIN_DERIVATION_PATHS, WIIICOIN_NETWORK } from '../../blue_modules/wiiicoin-network';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
 
-/**
- * HD Wallet (BIP39).
- * In particular, BIP84 (Bech32 Native Segwit)
- * @see https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki
- */
+const bip32 = BIP32Factory(ecc);
+
+/** Wiiicoin BIP39 HD wallet using native SegWit addresses. */
 export class HDSegwitBech32Wallet extends AbstractHDElectrumWallet {
   static readonly type = 'HDsegwitBech32';
-  static readonly typeReadable = 'HD SegWit (BIP84 Bech32 Native)';
+  static readonly typeReadable = 'Wiiicoin HD SegWit (BIP84)';
   // @ts-ignore: override
   public readonly type = HDSegwitBech32Wallet.type;
   // @ts-ignore: override
   public readonly typeReadable = HDSegwitBech32Wallet.typeReadable;
   public readonly segwitType = 'p2wpkh';
-  static readonly derivationPath = "m/84'/0'/0'";
+  static readonly derivationPath = WIIICOIN_DERIVATION_PATHS.nativeSegwit;
+
+  _getWIFByIndex(internal: boolean, index: number): string | false {
+    if (!this.secret) return false;
+    const root = bip32.fromSeed(this._getSeed(), WIIICOIN_NETWORK);
+    const path = `${this.getDerivationPath()}/${internal ? 1 : 0}/${index}`;
+    return root.derivePath(path).toWIF();
+  }
 
   allowSend() {
     return true;
@@ -23,8 +32,9 @@ export class HDSegwitBech32Wallet extends AbstractHDElectrumWallet {
     return true;
   }
 
+  // PayJoin endpoints in the upstream application are Bitcoin-specific.
   allowPayJoin() {
-    return true;
+    return false;
   }
 
   allowCosignPsbt() {
@@ -47,11 +57,12 @@ export class HDSegwitBech32Wallet extends AbstractHDElectrumWallet {
     return true;
   }
 
+  // Enable these only after Wiiicoin-specific protocol compatibility is tested.
   allowBIP47() {
-    return true;
+    return false;
   }
 
   allowSilentPaymentSend(): boolean {
-    return true;
+    return false;
   }
 }
