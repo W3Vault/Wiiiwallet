@@ -1,0 +1,67 @@
+name: Wiiicoin build and live smoke test
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      WIIICOIN_TEST_WIF: ${{ secrets.WIIICOIN_TEST_WIF }}
+      WIIICOIN_TEST_AMOUNT_BASE_UNITS: ${{ vars.WIIICOIN_TEST_AMOUNT_BASE_UNITS || '1000000' }}
+      WIIICOIN_TEST_FEE_BASE_UNITS: ${{ vars.WIIICOIN_TEST_FEE_BASE_UNITS || '100000' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install JavaScript dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Wiiicoin network unit tests
+        run: npx jest tests/unit/wiiicoin-network.test.ts --runInBand --forceExit
+
+      - name: Generate wallet and test ElectrumX
+        run: npx jest tests/integration/wiiicoin-live-smoke.test.ts --runInBand --forceExit
+
+      - name: Build Android debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload smoke-test result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiicoin-smoke-result
+          path: wiiicoin-smoke-result.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Android APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wiiiwallet-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
