@@ -34,7 +34,25 @@ jobs:
           java-version: '17'
 
       - name: Install JavaScript dependencies
-        run: npm install --legacy-peer-deps
+        id: npm-install
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npm install --legacy-peer-deps --foreground-scripts 2>&1 | tee npm-install.log
+
+      - name: Upload npm diagnostics
+        if: steps.npm-install.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-install-diagnostics
+          path: npm-install.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after npm failure
+        if: steps.npm-install.outcome == 'failure'
+        run: exit 1
 
       - name: Run Wiiicoin network unit tests
         run: npx jest tests/unit/wiiicoin-network.test.ts --runInBand --forceExit
