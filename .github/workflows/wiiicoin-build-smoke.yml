@@ -24,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.11.0'
+          node-version: '24.3.0'
           cache: npm
 
       - name: Set up Java
@@ -33,13 +33,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install JavaScript dependencies
+      - name: Install JavaScript dependencies without Git prepare scripts
         id: npm-install
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          npm install --legacy-peer-deps --foreground-scripts 2>&1 | tee npm-install.log
+          npm ci --legacy-peer-deps --ignore-scripts 2>&1 | tee npm-install.log
 
       - name: Upload npm diagnostics
         if: steps.npm-install.outcome == 'failure'
@@ -53,6 +53,12 @@ jobs:
       - name: Stop after npm failure
         if: steps.npm-install.outcome == 'failure'
         run: exit 1
+
+      - name: Run Wiiiwallet post-install preparation
+        run: |
+          npm run releasenotes2json
+          npm run branch2json
+          npm run patches
 
       - name: Run Wiiicoin network unit tests
         run: npx jest tests/unit/wiiicoin-network.test.ts --runInBand --forceExit
