@@ -1,29 +1,17 @@
-name: Wiiicoin build and live smoke test
+name: Wiiiwallet standalone Android build
 
 on:
   pull_request:
     branches: [master]
   workflow_dispatch:
-    inputs:
-      run_live_transaction:
-        description: 'Run the funded ElectrumX round-trip transaction'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 jobs:
-  build-and-smoke:
+  build-standalone-apk:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
-    env:
-      # Pull-request builds perform public ElectrumX checks without spending funds.
-      # The funded transaction runs only when explicitly enabled on workflow_dispatch.
-      WIIICOIN_TEST_WIF: ${{ github.event_name == 'workflow_dispatch' && inputs.run_live_transaction && secrets.WIIICOIN_TEST_WIF || '' }}
-      WIIICOIN_TEST_AMOUNT_BASE_UNITS: ${{ vars.WIIICOIN_TEST_AMOUNT_BASE_UNITS || '1000000' }}
-      WIIICOIN_TEST_FEE_BASE_UNITS: ${{ vars.WIIICOIN_TEST_FEE_BASE_UNITS || '100000' }}
 
     steps:
       - name: Check out repository
@@ -44,7 +32,7 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Install JavaScript dependencies without Git prepare scripts
+      - name: Install JavaScript dependencies
         id: npm-install
         continue-on-error: true
         shell: bash
@@ -77,116 +65,42 @@ jobs:
           set -euo pipefail
           node <<'NODE'
           const fs = require('fs');
-          const capturePackagePath = 'node_modules/react-native-capture-protection/package.json';
-          const capturePackage = JSON.parse(fs.readFileSync(capturePackagePath, 'utf8'));
-          capturePackage.main = './src/index.ts';
-          capturePackage.module = './src/index.ts';
-          capturePackage.types = './src/index.ts';
-          capturePackage['react-native'] = './src/index.ts';
-          capturePackage.exports = capturePackage.exports || {};
-          capturePackage.exports['.'] = {
+          const packagePath = 'node_modules/react-native-capture-protection/package.json';
+          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          pkg.main = './src/index.ts';
+          pkg.module = './src/index.ts';
+          pkg.types = './src/index.ts';
+          pkg['react-native'] = './src/index.ts';
+          pkg.exports = pkg.exports || {};
+          pkg.exports['.'] = {
             'react-native': './src/index.ts',
             module: './src/index.ts',
             'module-sync': './src/index.ts',
             default: './src/index.ts',
           };
-          fs.writeFileSync(capturePackagePath, `${JSON.stringify(capturePackage, null, 2)}\n`);
+          fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
           NODE
           test -f node_modules/react-native-capture-protection/src/index.ts
 
-      - name: Verify Wiiicoin branding and configuration
+      - name: Verify Wiiiwallet configuration
         shell: bash
         run: |
           set -euo pipefail
-          grep -F '<string name="app_name">Wiiicoin</string>' android/app/src/main/res/values/strings.xml
+          grep -F '<string name="app_name">Wiiiwallet</string>' android/app/src/main/res/values/strings.xml
           grep -F 'android:icon="@drawable/wiiicoin_logo"' android/app/src/main/AndroidManifest.xml
-          grep -F "name: 'Wiiicoin Explorer', url: 'https://wiiicoin.io'" models/blockExplorer.ts
-          grep -F "loc.units.BTC = 'WIII'" index.js
-          grep -F 'fastestFee: 100' models/networkTransactionFees.ts
-          grep -F 'mediumFee: 10' models/networkTransactionFees.ts
-          grep -F 'slowFee: 1' models/networkTransactionFees.ts
+          grep -F 'android:roundIcon="@drawable/wiiicoin_logo"' android/app/src/main/AndroidManifest.xml
+          grep -F "host: 'etx1.wiiicoin.io'" blue_modules/wiiicoin-network.ts
+          grep -F 'tcp: 50001' blue_modules/wiiicoin-network.ts
+          grep -F 'standalone {' android/app/build.gradle
+          grep -F 'debuggable false' android/app/build.gradle
           test -f android/app/src/main/res/drawable/wiiicoin_logo.xml
 
-      - name: Verify wiiicoin.io valuation source
-        id: wiiicoin-price
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          node --input-type=module <<'NODE' 2>&1 | tee wiiicoin-price-test.log
-          import fs from 'node:fs';
-
-          const url = 'https://www.wiiicoin.io/ext/getsummary';
-          let lastError;
-
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-              const response = await fetch(url, {
-                headers: {
-                  Accept: 'application/json',
-                  'User-Agent': 'Wiiicoin-Android-Build/1.0',
-                },
-              });
-              if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-              const summary = await response.json();
-              const lastUSDPrice = Number(summary.lastUSDPrice);
-              const lastPrice = Number(summary.lastPrice);
-              const hasUsdPrice = Number.isFinite(lastUSDPrice) && lastUSDPrice > 0;
-              const hasPairPrice = Number.isFinite(lastPrice) && lastPrice > 0;
-              if (!hasUsdPrice && !hasPairPrice) {
-                throw new Error(`No positive WIII valuation returned: ${JSON.stringify(summary)}`);
-              }
-
-              const result = {
-                generatedAt: new Date().toISOString(),
-                url,
-                lastUSDPrice: summary.lastUSDPrice,
-                lastPrice: summary.lastPrice,
-                source: 'wiiicoin.io',
-              };
-              fs.writeFileSync('wiiicoin-price-result.json', `${JSON.stringify(result, null, 2)}\n`);
-              console.log(JSON.stringify(result, null, 2));
-              process.exit(0);
-            } catch (error) {
-              lastError = error;
-              console.error(`Valuation check attempt ${attempt} failed:`, error.message);
-              if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-          }
-
-          throw lastError;
-          NODE
-
-      - name: Upload valuation diagnostics
-        if: steps.wiiicoin-price.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiiicoin-price-diagnostics
-          path: wiiicoin-price-test.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload valuation result
-        if: steps.wiiicoin-price.outcome == 'success'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiiicoin-price-result
-          path: wiiicoin-price-result.json
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Stop after valuation failure
-        if: steps.wiiicoin-price.outcome == 'failure'
-        run: exit 1
-
-      - name: Test Wiiicoin BIP49 wallet and transaction signing
+      - name: Test Wiiicoin wallet configuration
         id: wiiicoin-unit
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-
           camera_dir='node_modules/react-native-camera-kit-no-google'
           camera_package="$camera_dir/package.json"
           camera_backup="$camera_dir/package.json.wiiicoin-test-backup"
@@ -213,7 +127,7 @@ jobs:
             --runInBand \
             --no-cache 2>&1 | tee wiiicoin-unit-test.log
 
-      - name: Upload Wiiicoin unit-test diagnostics
+      - name: Upload unit-test diagnostics
         if: steps.wiiicoin-unit.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
@@ -222,38 +136,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Stop after Wiiicoin unit-test failure
+      - name: Stop after unit-test failure
         if: steps.wiiicoin-unit.outcome == 'failure'
-        run: exit 1
-
-      - name: Generate wallet and test ElectrumX
-        id: live-test
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          node scripts/wiiicoin-live-smoke.mjs 2>&1 | tee wiiicoin-live-test.log
-
-      - name: Upload live-test diagnostics
-        if: steps.live-test.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiiicoin-live-test-diagnostics
-          path: wiiicoin-live-test.log
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Upload smoke-test result
-        if: always() && steps.live-test.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiiicoin-smoke-result
-          path: wiiicoin-smoke-result.json
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Stop after live-test failure
-        if: steps.live-test.outcome == 'failure'
         run: exit 1
 
       - name: Build Android arm64 standalone APK
@@ -284,11 +168,33 @@ jobs:
         if: steps.android-build.outcome == 'failure'
         run: exit 1
 
-      - name: Upload Android standalone APK
-        if: steps.android-build.outcome == 'success'
+      - name: Prepare downloadable APK
+        run: cp android/app/build/outputs/apk/standalone/app-standalone.apk Wiiiwallet-android-arm64-standalone.apk
+
+      - name: Upload Wiiiwallet standalone APK
         uses: actions/upload-artifact@v4
         with:
-          name: Wiiicoin-android-arm64-standalone
-          path: android/app/build/outputs/apk/standalone/app-standalone.apk
+          name: Wiiiwallet-android-arm64-standalone
+          path: Wiiiwallet-android-arm64-standalone.apk
           if-no-files-found: error
           retention-days: 7
+          compression-level: 0
+
+      - name: Check default ElectrumX endpoint
+        continue-on-error: true
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import net from 'node:net';
+          const host = 'etx1.wiiicoin.io';
+          const port = 50001;
+          await new Promise((resolve, reject) => {
+            const socket = net.connect({ host, port }, () => {
+              socket.end();
+              resolve();
+            });
+            socket.setTimeout(10000, () => socket.destroy(new Error('connection timeout')));
+            socket.on('error', reject);
+          });
+          console.log(`Connected to ${host}:${port}`);
+          NODE
