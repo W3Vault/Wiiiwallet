@@ -71,13 +71,12 @@ jobs:
           npm run branch2json
           npm run patches
 
-      - name: Prepare standalone bundle and isolated test modules
+      - name: Prepare standalone bundle dependencies
         shell: bash
         run: |
           set -euo pipefail
           node <<'NODE'
           const fs = require('fs');
-
           const capturePackagePath = 'node_modules/react-native-capture-protection/package.json';
           const capturePackage = JSON.parse(fs.readFileSync(capturePackagePath, 'utf8'));
           capturePackage.main = './src/index.ts';
@@ -92,20 +91,8 @@ jobs:
             default: './src/index.ts',
           };
           fs.writeFileSync(capturePackagePath, `${JSON.stringify(capturePackage, null, 2)}\n`);
-
-          // tests/setup.js mocks this package by its unaliased name. It is not
-          // installed under that exact name, so provide a local non-application
-          // stub solely to let the Wiiicoin wallet test initialise Jest.
-          const cameraDir = 'node_modules/react-native-camera-kit-no-google';
-          fs.mkdirSync(cameraDir, { recursive: true });
-          fs.writeFileSync(
-            `${cameraDir}/package.json`,
-            `${JSON.stringify({ name: 'react-native-camera-kit-no-google', version: '0.0.0-ci', main: 'index.js' }, null, 2)}\n`,
-          );
-          fs.writeFileSync(`${cameraDir}/index.js`, 'module.exports = {};\n');
           NODE
           test -f node_modules/react-native-capture-protection/src/index.ts
-          test -f node_modules/react-native-camera-kit-no-google/index.js
 
       - name: Test Wiiicoin BIP49 wallet and transaction signing
         id: wiiicoin-unit
@@ -113,6 +100,29 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+
+          camera_dir='node_modules/react-native-camera-kit-no-google'
+          camera_package="$camera_dir/package.json"
+          camera_backup="$camera_dir/package.json.wiiicoin-test-backup"
+          camera_entry="$camera_dir/wiiicoin-jest-entry.js"
+
+          cp "$camera_package" "$camera_backup"
+          restore_camera_package() {
+            cp "$camera_backup" "$camera_package"
+            rm -f "$camera_backup" "$camera_entry"
+          }
+          trap restore_camera_package EXIT
+
+          node <<'NODE'
+          const fs = require('fs');
+          const packagePath = 'node_modules/react-native-camera-kit-no-google/package.json';
+          const entryPath = 'node_modules/react-native-camera-kit-no-google/wiiicoin-jest-entry.js';
+          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          pkg.main = './wiiicoin-jest-entry.js';
+          fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
+          fs.writeFileSync(entryPath, 'module.exports = {};\n');
+          NODE
+
           npx jest tests/unit/wiiicoin-network.test.ts \
             --runInBand \
             --no-cache 2>&1 | tee wiiicoin-unit-test.log
