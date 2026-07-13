@@ -10,6 +10,7 @@ import {
   WIIICOIN_ELECTRUM_SERVER,
   WIIICOIN_NETWORK,
 } from '../../blue_modules/wiiicoin-network';
+import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
 
 const bip32 = BIP32Factory(ecc);
 const generatorPublicKey = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex');
@@ -29,14 +30,25 @@ describe('Wiiicoin network configuration', () => {
 
     expect(legacy).toBeDefined();
     expect(wrapped).toBeDefined();
+    expect(wrapped?.startsWith('2')).toBe(true);
     expect(native?.startsWith(`${WIIICOIN_BECH32_HRP}1`)).toBe(true);
     expect(b58.decode(legacy!)[0]).toBe(WIIICOIN_NETWORK.pubKeyHash);
     expect(b58.decode(wrapped!)[0]).toBe(WIIICOIN_NETWORK.scriptHash);
   });
 
+  it('creates the default Wiiicoin wallet as BIP49 P2SH wrapped SegWit', () => {
+    const wallet = new HDSegwitP2SHWallet();
+    wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+
+    const address = wallet._getExternalAddressByIndex(0);
+    expect(address.startsWith('2')).toBe(true);
+    expect(b58.decode(address)[0]).toBe(WIIICOIN_NETWORK.scriptHash);
+    expect(wallet.getDerivationPath()).toBe(WIIICOIN_DERIVATION_PATHS.wrappedSegwit);
+  });
+
   it('exports child private keys using the Wiiicoin WIF prefix', () => {
     const root = bip32.fromSeed(Buffer.alloc(32, 1), WIIICOIN_NETWORK);
-    const child = root.derivePath(`${WIIICOIN_DERIVATION_PATHS.nativeSegwit}/0/0`);
+    const child = root.derivePath(`${WIIICOIN_DERIVATION_PATHS.wrappedSegwit}/0/0`);
     expect(wif.decode(child.toWIF()).version).toBe(WIIICOIN_NETWORK.wif);
   });
 
