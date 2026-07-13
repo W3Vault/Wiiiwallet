@@ -14,6 +14,7 @@ import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
 
 const bip32 = BIP32Factory(ecc);
 const generatorPublicKey = Buffer.from('0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', 'hex');
+const testMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
 describe('Wiiicoin network configuration', () => {
   it('installs Wiiicoin as the application-wide bitcoinjs network', () => {
@@ -38,12 +39,52 @@ describe('Wiiicoin network configuration', () => {
 
   it('creates the default Wiiicoin wallet as BIP49 P2SH wrapped SegWit', () => {
     const wallet = new HDSegwitP2SHWallet();
-    wallet.setSecret('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about');
+    wallet.setSecret(testMnemonic);
 
     const address = wallet._getExternalAddressByIndex(0);
     expect(address.startsWith('2')).toBe(true);
     expect(b58.decode(address)[0]).toBe(WIIICOIN_NETWORK.scriptHash);
     expect(wallet.getDerivationPath()).toBe(WIIICOIN_DERIVATION_PATHS.wrappedSegwit);
+  });
+
+  it('signs a Wiiicoin BIP49 transaction using the 0x89 WIF network version', () => {
+    const wallet = new HDSegwitP2SHWallet();
+    wallet.setSecret(testMnemonic);
+
+    const sourceAddress = wallet._getExternalAddressByIndex(0);
+    const destinationAddress = wallet._getExternalAddressByIndex(1);
+    const changeAddress = wallet._getInternalAddressByIndex(0);
+    const sourceWif = wallet._getExternalWIFByIndex(0);
+
+    expect(sourceAddress.startsWith('2')).toBe(true);
+    expect(destinationAddress.startsWith('2')).toBe(true);
+    expect(changeAddress.startsWith('2')).toBe(true);
+    expect(sourceWif).toBeTruthy();
+    expect(wif.decode(String(sourceWif)).version).toBe(WIIICOIN_NETWORK.wif);
+
+    const result = wallet.createTransaction(
+      [
+        {
+          txid: '00'.repeat(32),
+          vout: 0,
+          value: 2_000_000,
+          address: sourceAddress,
+          height: 1,
+          confirmations: 1,
+          wif: sourceWif,
+        },
+      ],
+      [{ address: destinationAddress, value: 1_000_000 }],
+      1,
+      changeAddress,
+      0xffffffff,
+      false,
+      0,
+    );
+
+    expect(result.tx).toBeDefined();
+    expect(result.tx?.toHex().length).toBeGreaterThan(100);
+    expect(result.outputs.every(output => !output.address || output.address.startsWith('2'))).toBe(true);
   });
 
   it('exports child private keys using the Wiiicoin WIF prefix', () => {
