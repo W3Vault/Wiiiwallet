@@ -56,6 +56,20 @@ export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
     return true;
   }
 
+  /** Wiiiwallet supports only Wiiicoin P2SH-P2WPKH destination addresses. */
+  isAddressValid(address: string): boolean {
+    try {
+      const cleanAddress = address.trim();
+      const decoded = bitcoin.address.fromBase58Check(cleanAddress);
+      if (decoded.version !== WIIICOIN_NETWORK.scriptHash) return false;
+      if (decoded.hash.length !== 20) return false;
+      bitcoin.address.toOutputScript(cleanAddress, WIIICOIN_NETWORK);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   _hdNodeToAddress(hdNode: BIP32Interface): string {
     const p2wpkh = bitcoin.payments.p2wpkh({ pubkey: hdNode.publicKey, network: WIIICOIN_NETWORK });
     const address = bitcoin.payments.p2sh({ redeem: p2wpkh, network: WIIICOIN_NETWORK }).address;
@@ -78,13 +92,7 @@ export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
     return this._xpub;
   }
 
-  /**
-   * Build and sign a Wiiicoin P2SH-P2WPKH transaction.
-   *
-   * The upstream transaction builder calls ECPair.fromWIF without a network,
-   * which assumes Bitcoin WIF version 0x80. Wiiicoin uses 0x89, so the network
-   * must be supplied explicitly here.
-   */
+  /** Build and sign a Wiiicoin P2SH-P2WPKH transaction. */
   createTransaction(
     utxos: CreateTransactionUtxo[],
     targets: CreateTransactionTarget[],
@@ -95,6 +103,13 @@ export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
     masterFingerprint: number = 0,
   ): CreateTransactionResult {
     if (targets.length === 0) throw new Error('No destination provided');
+    if (!this.isAddressValid(changeAddress)) throw new Error('Invalid Wiiicoin change address');
+
+    for (const target of targets) {
+      if (target.address && !this.isAddressValid(target.address)) {
+        throw new Error('Invalid Wiiicoin destination address');
+      }
+    }
 
     const { inputs, outputs, fee } = this.coinselect(utxos, targets, feeRate);
     sequence = sequence || AbstractHDElectrumWallet.defaultRBFSequence;
