@@ -71,28 +71,41 @@ jobs:
           npm run branch2json
           npm run patches
 
-      - name: Resolve capture-protection from checked-in source
+      - name: Prepare standalone bundle and isolated test modules
         shell: bash
         run: |
           set -euo pipefail
           node <<'NODE'
           const fs = require('fs');
-          const packagePath = 'node_modules/react-native-capture-protection/package.json';
-          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-          pkg.main = './src/index.ts';
-          pkg.module = './src/index.ts';
-          pkg.types = './src/index.ts';
-          pkg['react-native'] = './src/index.ts';
-          pkg.exports = pkg.exports || {};
-          pkg.exports['.'] = {
+
+          const capturePackagePath = 'node_modules/react-native-capture-protection/package.json';
+          const capturePackage = JSON.parse(fs.readFileSync(capturePackagePath, 'utf8'));
+          capturePackage.main = './src/index.ts';
+          capturePackage.module = './src/index.ts';
+          capturePackage.types = './src/index.ts';
+          capturePackage['react-native'] = './src/index.ts';
+          capturePackage.exports = capturePackage.exports || {};
+          capturePackage.exports['.'] = {
             'react-native': './src/index.ts',
             module: './src/index.ts',
             'module-sync': './src/index.ts',
             default: './src/index.ts',
           };
-          fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
+          fs.writeFileSync(capturePackagePath, `${JSON.stringify(capturePackage, null, 2)}\n`);
+
+          // tests/setup.js mocks this package by its unaliased name. It is not
+          // installed under that exact name, so provide a local non-application
+          // stub solely to let the Wiiicoin wallet test initialise Jest.
+          const cameraDir = 'node_modules/react-native-camera-kit-no-google';
+          fs.mkdirSync(cameraDir, { recursive: true });
+          fs.writeFileSync(
+            `${cameraDir}/package.json`,
+            `${JSON.stringify({ name: 'react-native-camera-kit-no-google', version: '0.0.0-ci', main: 'index.js' }, null, 2)}\n`,
+          );
+          fs.writeFileSync(`${cameraDir}/index.js`, 'module.exports = {};\n');
           NODE
           test -f node_modules/react-native-capture-protection/src/index.ts
+          test -f node_modules/react-native-camera-kit-no-google/index.js
 
       - name: Test Wiiicoin BIP49 wallet and transaction signing
         id: wiiicoin-unit
