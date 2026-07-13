@@ -1,15 +1,14 @@
 import Clipboard from '@react-native-clipboard/clipboard';
 import React, { useCallback } from 'react';
-import { Alert, Image, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getApplicationName, getBuildNumber, getBundleId, getUniqueIdSync, getVersion, hasGmsSync } from 'react-native-device-info';
+import { Alert, Linking, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getApplicationName, getBuildNumber, getBundleId, getUniqueIdSync, getVersion } from 'react-native-device-info';
 import Icon from '@react-native-vector-icons/fontawesome6';
 
 import A from '../../blue_modules/analytics';
+import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
 import BlueTextCentered from '../../components/BlueTextCentered';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
-import presentAlert from '../../components/Alert';
 import { BlueSpacing20 } from '../../components/BlueSpacing';
-import Button from '../../components/Button';
+import presentAlert from '../../components/Alert';
 import {
   SettingsCard,
   SettingsFlatList,
@@ -19,6 +18,7 @@ import {
   SettingsSectionHeader,
 } from '../../components/platform';
 import { useTheme } from '../../components/themes';
+import WiiicoinLogo from '../../components/WiiicoinLogo';
 import { useSettings } from '../../hooks/context/useSettings';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc, { formatStringAddTwoWhiteSpaces } from '../../loc';
@@ -52,39 +52,23 @@ const About: React.FC = () => {
     navigate('Licensing');
   }, [navigate]);
 
-  const handleOnXPress = useCallback(() => {
-    Linking.openURL('https://x.com/bluewalletio');
-  }, []);
-
-  const handleOnTelegramPress = useCallback(() => {
-    Linking.openURL('https://t.me/bluewallethat');
+  const handleOnWebsitePress = useCallback(() => {
+    Linking.openURL('https://wiiicoin.io');
   }, []);
 
   const handleOnGithubPress = useCallback(() => {
-    Linking.openURL('https://github.com/BlueWallet/BlueWallet');
-  }, []);
-
-  const handleOnRatePress = useCallback(async () => {
-    try {
-      if (Platform.OS === 'ios') {
-        await Linking.openURL('https://itunes.apple.com/app/bluewallet-bitcoin-wallet/id1376878040');
-      } else {
-        await Linking.openURL('https://play.google.com/store/apps/details?id=io.bluewallet.bluewallet');
-      }
-    } catch (error: any) {
-      console.error('Rate app failed:', error.message);
-    }
+    Linking.openURL('https://github.com/W3Vault/Wiiiwallet');
   }, []);
 
   const handlePerformanceTest = useCallback(async () => {
     const secret = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-    const w = new HDSegwitBech32Wallet();
-    w.setSecret(secret);
+    const wallet = new HDSegwitP2SHWallet();
+    wallet.setSecret(secret);
 
     const start = Date.now();
     let num;
     for (num = 0; num < 10000; num++) {
-      w._getExternalAddressByIndex(num);
+      wallet._getExternalAddressByIndex(num);
       if (Date.now() - start > 10 * 1000) {
         break;
       }
@@ -102,16 +86,11 @@ const About: React.FC = () => {
           <SettingsSection compact>
             <SettingsCard style={[styles.card, styles.headerCard]}>
               <View style={styles.center}>
-                <Image style={styles.logo} source={require('../../img/bluebeast.png')} />
+                <WiiicoinLogo style={styles.logo} />
                 <Text style={[styles.textFree, { color: colors.foregroundColor }]}>{loc.settings.about_free}</Text>
                 <Text style={[styles.textBackup, { color: colors.alternativeTextColor }]}>
                   {formatStringAddTwoWhiteSpaces(loc.settings.about_backup)}
                 </Text>
-                {((Platform.OS === 'android' && hasGmsSync()) || Platform.OS !== 'android') && (
-                  <View style={styles.headerButton}>
-                    <Button onPress={handleOnRatePress} title={loc.settings.about_review + ' ⭐🙏'} />
-                  </View>
-                )}
               </View>
             </SettingsCard>
           </SettingsSection>
@@ -119,17 +98,10 @@ const About: React.FC = () => {
         section: 1,
       },
       {
-        id: 'x',
-        title: '@bluewalletio',
-        leftIcon: <Text style={[styles.xIcon, { color: colors.foregroundColor }]}>𝕏</Text>,
-        onPress: handleOnXPress,
-        section: 2,
-      },
-      {
-        id: 'telegram',
-        title: loc.settings.about_sm_telegram,
-        leftIcon: <Icon name="telegram" size={24} color={colors.foregroundColor} iconStyle="brand" />,
-        onPress: handleOnTelegramPress,
+        id: 'website',
+        title: 'wiiicoin.io',
+        leftIcon: <Icon name="globe" size={24} color={colors.foregroundColor} />,
+        onPress: handleOnWebsitePress,
         section: 2,
       },
       {
@@ -149,7 +121,7 @@ const About: React.FC = () => {
               <BlueSpacing20 />
               <BlueTextCentered>React Native</BlueTextCentered>
               <BlueTextCentered>bitcoinjs-lib</BlueTextCentered>
-              <BlueTextCentered>Electrum server</BlueTextCentered>
+              <BlueTextCentered>Wiiicoin ElectrumX server</BlueTextCentered>
             </SettingsCard>
           </SettingsSection>
         ),
@@ -230,9 +202,7 @@ const About: React.FC = () => {
   }, [
     colors.foregroundColor,
     colors.alternativeTextColor,
-    handleOnRatePress,
-    handleOnXPress,
-    handleOnTelegramPress,
+    handleOnWebsitePress,
     handleOnGithubPress,
     handleOnReleaseNotesPress,
     handleOnLicensingPress,
@@ -254,9 +224,9 @@ const About: React.FC = () => {
 
       const currentSection = Math.floor(section || 0);
       const sectionItems = aboutItems().filter(
-        i => Math.floor(i.section || 0) === currentSection && !i.customContent && (i.onPress || i.leftIcon || i.chevron || i.subtitle),
+        item => Math.floor(item.section || 0) === currentSection && !item.customContent && (item.onPress || item.leftIcon || item.chevron || item.subtitle),
       );
-      const indexInSection = sectionItems.findIndex(i => i.id === id);
+      const indexInSection = sectionItems.findIndex(item => item.id === id);
       const isFirstInSection = indexInSection === 0;
       const isLastInSection = indexInSection === sectionItems.length - 1;
       const position = isFirstInSection && isLastInSection ? 'single' : isFirstInSection ? 'first' : isLastInSection ? 'last' : 'middle';
@@ -299,10 +269,6 @@ const styles = StyleSheet.create({
       marginVertical: 0,
     }),
   },
-  xIcon: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
   card: {
     marginVertical: 8,
   },
@@ -317,7 +283,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     marginBottom: 12,
-    resizeMode: 'contain',
   },
   textFree: {
     marginTop: 16,
@@ -328,9 +293,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 14,
     textAlign: 'center',
-  },
-  headerButton: {
-    marginTop: 16,
   },
   footerContainer: {
     marginTop: 16,
