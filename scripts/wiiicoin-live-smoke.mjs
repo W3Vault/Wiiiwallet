@@ -175,7 +175,6 @@ try {
   assert.equal(WIIICOIN_NETWORK.bech32, 'w3i');
 
   const mnemonic = bip39.generateMnemonic(128);
-  process.stdout.write(`::add-mask::${mnemonic}\n`);
   const seed = await bip39.mnemonicToSeed(mnemonic);
   const child = bip32.fromSeed(seed, WIIICOIN_NETWORK).derivePath(DERIVATION_PATH);
   if (!child.privateKey) throw new Error('Generated HD child has no private key');
@@ -202,14 +201,18 @@ try {
   if (!fundingWif) {
     result.transactionTest = 'skipped: WIIICOIN_TEST_WIF secret is not configured';
   } else {
-    process.stdout.write(`::add-mask::${fundingWif}\n`);
     const fundingKey = ECPair.fromWIF(fundingWif, WIIICOIN_NETWORK);
     const fundingAddress = legacyAddressForKey(fundingKey);
+    const fundingScriptHash = scriptHashForAddress(fundingAddress);
     const amount = Number(process.env.WIIICOIN_TEST_AMOUNT_BASE_UNITS || '1000000');
     const fee = Number(process.env.WIIICOIN_TEST_FEE_BASE_UNITS || '100000');
     result.fundingAddress = fundingAddress;
+    result.fundingScriptHash = fundingScriptHash;
     result.amountBaseUnits = amount;
     result.feeBaseUnits = fee;
+    result.fundingBalance = await rpc.request('blockchain.scripthash.get_balance', [fundingScriptHash]);
+    result.fundingHistory = await rpc.request('blockchain.scripthash.get_history', [fundingScriptHash]);
+    result.fundingUnspent = await rpc.request('blockchain.scripthash.listunspent', [fundingScriptHash]);
 
     const fundingTx = await createAndBroadcastLegacyTransaction({
       rpc,
@@ -218,6 +221,7 @@ try {
       destinationAddress: generatedAddress,
       amount,
       fee,
+      utxos: result.fundingUnspent,
     });
     result.fundingTxid = fundingTx.txid;
 
