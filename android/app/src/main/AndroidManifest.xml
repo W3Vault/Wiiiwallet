@@ -22,8 +22,8 @@
     <application
         android:name=".MainApplication"
         android:label="@string/app_name"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@drawable/wiiicoin_logo"
+        android:roundIcon="@drawable/wiiicoin_logo"
         android:allowBackup="false"
         android:largeHeap="true"
         android:extractNativeLibs="true"
@@ -45,15 +45,16 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/foreground_color" />
-<provider
-    android:name="androidx.core.content.FileProvider"
-    android:authorities="${applicationId}.provider"
-    android:exported="false"
-    android:grantUriPermissions="true">
-    <meta-data
-        android:name="android.support.FILE_PROVIDER_PATHS"
-        android:resource="@xml/file_paths" />
-</provider>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <receiver android:name=".BitcoinPriceWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
@@ -101,7 +102,7 @@
         <!-- Settings Activity alias for System Settings -->
         <activity-alias
             android:name=".SettingsActivityAlias"
-            android:label="BlueWallet Settings"
+            android:label="Wiiicoin Settings"
             android:exported="true"
             android:targetActivity=".SettingsActivity">
             <intent-filter>
@@ -128,13 +129,14 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file" android:mimeType="application/octet-stream" android:pathPattern=".*\\.psbt" />
+                <data android:scheme="file" android:mimeType="application/octet-stream" android:pathPattern=".*\.psbt" />
             </intent-filter>
-            
-            <!-- Intent filter for other custom schemes (bitcoin, bluewallet, etc.) -->
+
+            <!-- Intent filter for Wiiicoin, legacy Bitcoin-compatible and web links. -->
             <intent-filter tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="wiiicoin" />
                 <data android:scheme="bitcoin" />
                 <data android:scheme="lightning" />
                 <data android:scheme="bluewallet" />
@@ -148,7 +150,7 @@
             <intent-filter tools:ignore="AppLinkUrlError">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file" android:mimeType="application/octet-stream" android:pathPattern=".*\\.*" />
+                <data android:scheme="file" android:mimeType="application/octet-stream" android:pathPattern=".*\.*" />
             </intent-filter>
 
             <!-- Intent filter for handling PSBT files -->
@@ -158,7 +160,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data
                     android:mimeType="application/octet-stream"
-                    android:pathPattern=".*\\.psbt" />
+                    android:pathPattern=".*\.psbt" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
@@ -166,7 +168,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data
                     android:mimeType="text/plain"
-                    android:pathPattern=".*\\.psbt" />
+                    android:pathPattern=".*\.psbt" />
             </intent-filter>
         </activity>
 
