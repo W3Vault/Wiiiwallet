@@ -1,0 +1,56 @@
+name: Build Downloadable Wiiiwallet APK
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apk:
+    name: Build debug APK
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Wiiiwallet
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install JavaScript dependencies
+        run: npm ci --include=dev
+
+      - name: Build Wiiiwallet debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare downloadable filename
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Wiiiwallet-debug.apk
+
+      - name: Upload Wiiiwallet APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wiiiwallet-debug-apk
+          path: Wiiiwallet-debug.apk
+          if-no-files-found: error
+          retention-days: 7
