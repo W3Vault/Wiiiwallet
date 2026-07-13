@@ -8,14 +8,11 @@ export interface BlockExplorer {
 }
 
 export const BLOCK_EXPLORERS: { [key: string]: BlockExplorer } = {
-  default: { key: 'default', name: 'Mempool.space', url: 'https://mempool.space' },
-  blockchair: { key: 'blockchair', name: 'Blockchair', url: 'https://blockchair.com/bitcoin' },
-  blockstream: { key: 'blockstream', name: 'Blockstream.info', url: 'https://blockstream.info' },
-  custom: { key: 'custom', name: 'Custom', url: '' }, // Custom URL will be handled separately
+  default: { key: 'default', name: 'Wiiicoin Explorer', url: 'https://wiiicoin.io' },
 };
 
 export const getBlockExplorersList = (): BlockExplorer[] => {
-  return Object.values(BLOCK_EXPLORERS);
+  return [BLOCK_EXPLORERS.default];
 };
 
 export const normalizeUrl = (url: string): string => {
@@ -28,13 +25,7 @@ export const isValidUrl = (url: string): boolean => {
 };
 
 export const findMatchingExplorerByDomain = (url: string): BlockExplorer | null => {
-  const domain = getDomain(url);
-  for (const explorer of Object.values(BLOCK_EXPLORERS)) {
-    if (getDomain(explorer.url) === domain) {
-      return explorer;
-    }
-  }
-  return null;
+  return getDomain(url) === getDomain(BLOCK_EXPLORERS.default.url) ? BLOCK_EXPLORERS.default : null;
 };
 
 export const getDomain = (url: string): string => {
@@ -50,7 +41,8 @@ const BLOCK_EXPLORER_STORAGE_KEY = 'blockExplorer';
 
 export const saveBlockExplorer = async (url: string): Promise<boolean> => {
   try {
-    await DefaultPreference.set(BLOCK_EXPLORER_STORAGE_KEY, url);
+    if (getDomain(url) !== getDomain(BLOCK_EXPLORERS.default.url)) return false;
+    await DefaultPreference.set(BLOCK_EXPLORER_STORAGE_KEY, BLOCK_EXPLORERS.default.url);
     return true;
   } catch (error) {
     console.error('Error saving block explorer:', error);
@@ -70,8 +62,14 @@ export const removeBlockExplorer = async (): Promise<boolean> => {
 
 export const getBlockExplorerUrl = async (): Promise<string> => {
   try {
-    const url = (await DefaultPreference.get(BLOCK_EXPLORER_STORAGE_KEY)) as string | null;
-    return url ?? BLOCK_EXPLORERS.default.url;
+    const storedUrl = (await DefaultPreference.get(BLOCK_EXPLORER_STORAGE_KEY)) as string | null;
+    if (storedUrl && getDomain(storedUrl) === getDomain(BLOCK_EXPLORERS.default.url)) {
+      return BLOCK_EXPLORERS.default.url;
+    }
+
+    // Ignore and replace any previously stored Bitcoin explorer selection.
+    await DefaultPreference.set(BLOCK_EXPLORER_STORAGE_KEY, BLOCK_EXPLORERS.default.url);
+    return BLOCK_EXPLORERS.default.url;
   } catch (error) {
     console.error('Error getting block explorer:', error);
     return BLOCK_EXPLORERS.default.url;
