@@ -15,7 +15,9 @@ export const WIIICOIN_NETWORK: bitcoin.Network = {
     private: 0x0488ade4,
   },
   pubKeyHash: 0x87,
-  scriptHash: 0x7d,
+  // Wiiicoin Core generates P2SH-wrapped SegWit addresses such as 2a1Q....
+  // Base58Check decoding confirms these use version byte 0x03.
+  scriptHash: 0x03,
   wif: 0x89,
 };
 
