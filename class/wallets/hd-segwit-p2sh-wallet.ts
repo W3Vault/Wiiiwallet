@@ -3,13 +3,16 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { Psbt } from 'bitcoinjs-lib';
 import b58 from 'bs58check';
 import { CoinSelectReturnInput } from 'coinselect';
+import { ECPairFactory, ECPairInterface } from 'ecpair';
 
 import ecc from '../../blue_modules/noble_ecc';
 import { concatUint8Arrays, hexToUint8Array } from '../../blue_modules/uint8array-extras';
 import { WIIICOIN_DERIVATION_PATHS, WIIICOIN_NETWORK } from '../../blue_modules/wiiicoin-network';
 import { AbstractHDElectrumWallet } from './abstract-hd-electrum-wallet';
+import { CreateTransactionResult, CreateTransactionTarget, CreateTransactionUtxo } from './types';
 
 const bip32 = BIP32Factory(ecc);
+const ECPair = ECPairFactory(ecc);
 
 /** Wiiicoin BIP39 HD wallet using P2SH-wrapped SegWit addresses. */
 export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
@@ -30,6 +33,10 @@ export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
   }
 
   allowSend() {
+    return true;
+  }
+
+  allowRBF() {
     return true;
   }
 
@@ -71,6 +78,85 @@ export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
     return this._xpub;
   }
 
+  /**
+   * Build and sign a Wiiicoin P2SH-P2WPKH transaction.
+   *
+   * The upstream transaction builder calls ECPair.fromWIF without a network,
+   * which assumes Bitcoin WIF version 0x80. Wiiicoin uses 0x89, so the network
+   * must be supplied explicitly here.
+   */
+  createTransaction(
+    utxos: CreateTransactionUtxo[],
+    targets: CreateTransactionTarget[],
+    feeRate: number,
+    changeAddress: string,
+    sequence: number = AbstractHDElectrumWallet.defaultRBFSequence,
+    skipSigning = false,
+    masterFingerprint: number = 0,
+  ): CreateTransactionResult {
+    if (targets.length === 0) throw new Error('No destination provided');
+
+    const { inputs, outputs, fee } = this.coinselect(utxos, targets, feeRate);
+    sequence = sequence || AbstractHDElectrumWallet.defaultRBFSequence;
+
+    const psbt = new bitcoin.Psbt({ network: WIIICOIN_NETWORK });
+    const keypairs: Record<number, ECPairInterface> = {};
+
+    let masterFingerprintBuffer: Uint8Array;
+    if (masterFingerprint) {
+      let masterFingerprintHex = Number(masterFingerprint).toString(16).padStart(8, '0');
+      masterFingerprintHex = masterFingerprintHex.slice(-8);
+      masterFingerprintBuffer = hexToUint8Array(masterFingerprintHex).reverse();
+    } else {
+      masterFingerprintBuffer = new Uint8Array([0x00, 0x00, 0x00, 0x00]);
+    }
+
+    inputs.forEach((input, index) => {
+      if (!input.address) throw new Error('Internal error: no address on Wiiicoin UTXO');
+
+      if (!skipSigning) {
+        const privateKey = this._getWifForAddress(input.address);
+        if (!privateKey) throw new Error('Internal error: no Wiiicoin WIF to sign input');
+        keypairs[index] = ECPair.fromWIF(privateKey, WIIICOIN_NETWORK);
+      }
+
+      this._addPsbtInput(psbt, input, sequence, masterFingerprintBuffer);
+    });
+
+    const sanitizedOutputs = outputs.map(output => {
+      const outputData = output as typeof output & { script?: { hex?: string } };
+      const isChange = !outputData.address && !outputData.script?.hex;
+      const address = outputData.address ?? (isChange ? changeAddress : undefined);
+      const path = address ? this._getDerivationPathByAddress(address) : false;
+      const pubkey = address ? this._getPubkeyByAddress(address) : false;
+
+      const psbtOutput: {
+        address?: string;
+        script?: Uint8Array;
+        value: bigint;
+        bip32Derivation?: Array<{ masterFingerprint: Uint8Array; path: string; pubkey: Uint8Array }>;
+      } = {
+        value: BigInt(outputData.value),
+      };
+
+      if (address) psbtOutput.address = address;
+      if (outputData.script?.hex) psbtOutput.script = hexToUint8Array(outputData.script.hex);
+      if (isChange && path && pubkey) {
+        psbtOutput.bip32Derivation = [{ masterFingerprint: masterFingerprintBuffer, path, pubkey }];
+      }
+
+      psbt.addOutput(psbtOutput);
+      return { ...outputData, address };
+    });
+
+    if (!skipSigning) {
+      inputs.forEach((_, index) => psbt.signInput(index, keypairs[index]));
+    }
+
+    const tx = skipSigning ? undefined : psbt.finalizeAllInputs().extractTransaction();
+    return { tx, inputs, outputs: sanitizedOutputs, fee, psbt };
+  }
+
   _addPsbtInput(psbt: Psbt, input: CoinSelectReturnInput, sequence: number, masterFingerprintBuffer: Uint8Array) {
     if (!input.address) throw new Error('Internal error: no address on Utxo during _addPsbtInput()');
     const pubkey = this._getPubkeyByAddress(input.address);
@@ -80,6 +166,7 @@ export class HDSegwitP2SHWallet extends AbstractHDElectrumWallet {
     const p2wpkh = bitcoin.payments.p2wpkh({ pubkey, network: WIIICOIN_NETWORK });
     const p2sh = bitcoin.payments.p2sh({ redeem: p2wpkh, network: WIIICOIN_NETWORK });
     if (!p2sh.output) throw new Error('Internal error: no p2sh.output during _addPsbtInput()');
+    if (!p2wpkh.output) throw new Error('Internal error: no redeem script during _addPsbtInput()');
 
     psbt.addInput({
       hash: input.txid,
