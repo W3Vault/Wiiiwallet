@@ -14,6 +14,7 @@ import { runArkBackgroundTask } from './blue_modules/arkade-background';
 import { hardcodedPeers, suggestedServers } from './blue_modules/BlueElectrum';
 import { WIIICOIN_ELECTRUM_SERVER } from './blue_modules/wiiicoin-network';
 import DeeplinkSchemaMatch from './class/deeplink-schema-match';
+import loc from './loc';
 
 // BlueElectrum calculates its starting peer index while the module loads. Preserve
 // the array length while replacing every Bitcoin fallback with the Wiiicoin server,
@@ -22,6 +23,59 @@ const wiiicoinPeers = hardcodedPeers.map(() => ({ ...WIIICOIN_ELECTRUM_SERVER })
 if (wiiicoinPeers.length === 0) wiiicoinPeers.push({ ...WIIICOIN_ELECTRUM_SERVER });
 hardcodedPeers.splice(0, hardcodedPeers.length, ...wiiicoinPeers);
 suggestedServers.splice(0, suggestedServers.length, { ...WIIICOIN_ELECTRUM_SERVER });
+
+// Keep upstream internal BTC identifiers for compatibility, while ensuring every
+// user-facing label identifies the application and coin as Wiiicoin / WIII.
+const rewriteWiiicoinTerminology = value => {
+  if (typeof value !== 'string') return value;
+  return value
+    .replace(/BlueWallet/g, 'Wiiicoin')
+    .replace(/\bBitcoin\b/g, 'Wiiicoin')
+    .replace(/\bBTC\b/g, 'WIII')
+    .replace(/Satoshi per vByte/g, 'Base units per vByte')
+    .replace(/satoshi per vByte/g, 'base units per vByte')
+    .replace(/sat\/vByte/g, 'units/vByte');
+};
+
+const applyWiiicoinTerminology = () => {
+  const visited = new WeakSet();
+  const rewriteObject = object => {
+    if (!object || typeof object !== 'object' || visited.has(object)) return;
+    visited.add(object);
+    for (const key of Object.keys(object)) {
+      const value = object[key];
+      if (typeof value === 'string') {
+        try {
+          object[key] = rewriteWiiicoinTerminology(value);
+        } catch (_) {}
+      } else if (value && typeof value === 'object') {
+        rewriteObject(value);
+      }
+    }
+  };
+
+  rewriteObject(loc);
+  if (loc.units) {
+    loc.units.BTC = 'WIII';
+    loc.units.sat_vbyte = 'units/vByte';
+  }
+};
+
+const originalSetContent = loc.setContent.bind(loc);
+loc.setContent = (...args) => {
+  const result = originalSetContent(...args);
+  applyWiiicoinTerminology();
+  return result;
+};
+
+const originalSetLanguage = loc.setLanguage.bind(loc);
+loc.setLanguage = (...args) => {
+  const result = originalSetLanguage(...args);
+  applyWiiicoinTerminology();
+  return result;
+};
+
+applyWiiicoinTerminology();
 
 // The upstream URI parser is intentionally retained to minimise divergence. Feed
 // it a BIP21-compatible internal form, then expose Wiiicoin URIs at the app edge.
@@ -73,4 +127,5 @@ const BlueAppComponent = () => {
   return <App />;
 };
 
+// The native component name remains unchanged for React Native compatibility.
 AppRegistry.registerComponent('BlueWallet', () => BlueAppComponent);
