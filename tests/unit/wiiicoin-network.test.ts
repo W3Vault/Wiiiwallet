@@ -97,6 +97,6 @@ describe('Wiiicoin network configuration', () => {
     expect(WIIICOIN_DERIVATION_PATHS.legacy).toBe("m/44'/9999'/0'");
     expect(WIIICOIN_DERIVATION_PATHS.wrappedSegwit).toBe("m/49'/9999'/0'");
     expect(WIIICOIN_DERIVATION_PATHS.nativeSegwit).toBe("m/84'/9999'/0'");
-    expect(WIIICOIN_ELECTRUM_SERVER).toEqual({ host: 'wiiicoin.io', tcp: 50001 });
+    expect(WIIICOIN_ELECTRUM_SERVER).toEqual({ host: 'etx1.wiiicoin.io', tcp: 50001 });
   });
 });
