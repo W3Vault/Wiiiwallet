@@ -16,7 +16,7 @@ bitcoin.initEccLib(ecc);
 
 const RESULT_PATH = 'wiiicoin-smoke-result.json';
 const ELECTRUM = { host: 'wiiicoin.io', tcp: 50001 };
-const DERIVATION_PATH = "m/44'/9999'/0'/0/0";
+const DERIVATION_PATH = "m/49'/9999'/0'/0/0";
 const WIIICOIN_NETWORK = {
   messagePrefix: '\x18Wiiicoin Signed Message:\n',
   bech32: 'w3i',
@@ -25,7 +25,7 @@ const WIIICOIN_NETWORK = {
     private: 0x0488ade4,
   },
   pubKeyHash: 0x87,
-  scriptHash: 0x7d,
+  scriptHash: 0x03,
   wif: 0x89,
 };
 
@@ -114,14 +114,29 @@ function scriptHashForAddress(address) {
   return Buffer.from(createHash('sha256').update(script).digest()).reverse().toString('hex');
 }
 
-function legacyAddressForKey(keyPair) {
-  const address = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network: WIIICOIN_NETWORK }).address;
-  if (!address) throw new Error('Unable to derive Wiiicoin legacy address');
-  return address;
+function wrappedSegwitPaymentForKey(keyPair) {
+  const redeem = bitcoin.payments.p2wpkh({
+    pubkey: keyPair.publicKey,
+    network: WIIICOIN_NETWORK,
+  });
+  const payment = bitcoin.payments.p2sh({
+    redeem,
+    network: WIIICOIN_NETWORK,
+  });
+
+  if (!payment.address || !payment.output || !redeem.output) {
+    throw new Error('Unable to derive Wiiicoin wrapped SegWit payment');
+  }
+
+  return {
+    address: payment.address,
+    output: Buffer.from(payment.output),
+    redeemScript: Buffer.from(redeem.output),
+  };
 }
 
-async function createAndBroadcastLegacyTransaction({ rpc, keyPair, sourceAddress, destinationAddress, amount, fee, utxos }) {
-  const available = utxos || (await rpc.request('blockchain.scripthash.listunspent', [scriptHashForAddress(sourceAddress)]));
+async function createAndBroadcastWrappedSegwitTransaction({ rpc, keyPair, sourcePayment, destinationAddress, amount, fee, utxos }) {
+  const available = utxos || (await rpc.request('blockchain.scripthash.listunspent', [scriptHashForAddress(sourcePayment.address)]));
   const selected = [];
   let inputValue = 0;
 
@@ -136,17 +151,20 @@ async function createAndBroadcastLegacyTransaction({ rpc, keyPair, sourceAddress
 
   const psbt = new bitcoin.Psbt({ network: WIIICOIN_NETWORK });
   for (const utxo of selected) {
-    const previousHex = await rpc.request('blockchain.transaction.get', [utxo.tx_hash, false]);
     psbt.addInput({
       hash: utxo.tx_hash,
       index: utxo.tx_pos,
-      nonWitnessUtxo: Buffer.from(previousHex, 'hex'),
+      witnessUtxo: {
+        script: sourcePayment.output,
+        value: BigInt(utxo.value),
+      },
+      redeemScript: sourcePayment.redeemScript,
     });
   }
 
   psbt.addOutput({ address: destinationAddress, value: BigInt(amount) });
   const change = inputValue - amount - fee;
-  if (change >= 546) psbt.addOutput({ address: sourceAddress, value: BigInt(change) });
+  if (change >= 546) psbt.addOutput({ address: sourcePayment.address, value: BigInt(change) });
 
   for (let index = 0; index < selected.length; index++) psbt.signInput(index, keyPair);
   const transaction = psbt.finalizeAllInputs().extractTransaction();
@@ -164,13 +182,14 @@ const result = {
   electrum: `${ELECTRUM.host}:${ELECTRUM.tcp}`,
   electrumTransport: 'tcp',
   derivationPath: DERIVATION_PATH,
+  addressType: 'p2sh-p2wpkh',
   transactionTest: 'not attempted',
 };
 const rpc = new ElectrumRpc();
 
 try {
   assert.equal(WIIICOIN_NETWORK.pubKeyHash, 135);
-  assert.equal(WIIICOIN_NETWORK.scriptHash, 125);
+  assert.equal(WIIICOIN_NETWORK.scriptHash, 3);
   assert.equal(WIIICOIN_NETWORK.wif, 137);
   assert.equal(WIIICOIN_NETWORK.bech32, 'w3i');
 
@@ -179,11 +198,11 @@ try {
   const child = bip32.fromSeed(seed, WIIICOIN_NETWORK).derivePath(DERIVATION_PATH);
   if (!child.privateKey) throw new Error('Generated HD child has no private key');
   const generatedKey = ECPair.fromPrivateKey(child.privateKey, { network: WIIICOIN_NETWORK });
-  const generatedAddress = legacyAddressForKey(generatedKey);
-  const decodedAddress = bitcoin.address.fromBase58Check(generatedAddress);
-  assert.equal(decodedAddress.version, WIIICOIN_NETWORK.pubKeyHash);
+  const generatedPayment = wrappedSegwitPaymentForKey(generatedKey);
+  const decodedAddress = bitcoin.address.fromBase58Check(generatedPayment.address);
+  assert.equal(decodedAddress.version, WIIICOIN_NETWORK.scriptHash);
 
-  result.generatedAddress = generatedAddress;
+  result.generatedAddress = generatedPayment.address;
   result.generatedAddressVersion = decodedAddress.version;
   result.generatedWifVersion = WIIICOIN_NETWORK.wif;
 
@@ -191,8 +210,8 @@ try {
   result.serverVersion = await rpc.request('server.version', ['Wiiiwallet smoke test', '1.4']);
   const header = await rpc.request('blockchain.headers.subscribe');
   result.blockHeight = header?.height;
-  result.initialBalance = await rpc.request('blockchain.scripthash.get_balance', [scriptHashForAddress(generatedAddress)]);
-  result.initialHistory = await rpc.request('blockchain.scripthash.get_history', [scriptHashForAddress(generatedAddress)]);
+  result.initialBalance = await rpc.request('blockchain.scripthash.get_balance', [scriptHashForAddress(generatedPayment.address)]);
+  result.initialHistory = await rpc.request('blockchain.scripthash.get_history', [scriptHashForAddress(generatedPayment.address)]);
 
   assert.ok(result.serverVersion, 'ElectrumX did not return a server version');
   assert.ok(Number(result.blockHeight) > 0, 'ElectrumX did not return a valid block height');
@@ -202,11 +221,12 @@ try {
     result.transactionTest = 'skipped: WIIICOIN_TEST_WIF secret is not configured';
   } else {
     const fundingKey = ECPair.fromWIF(fundingWif, WIIICOIN_NETWORK);
-    const fundingAddress = legacyAddressForKey(fundingKey);
-    const fundingScriptHash = scriptHashForAddress(fundingAddress);
+    const fundingPayment = wrappedSegwitPaymentForKey(fundingKey);
+    const fundingScriptHash = scriptHashForAddress(fundingPayment.address);
     const amount = Number(process.env.WIIICOIN_TEST_AMOUNT_BASE_UNITS || '1000000');
     const fee = Number(process.env.WIIICOIN_TEST_FEE_BASE_UNITS || '100000');
-    result.fundingAddress = fundingAddress;
+    result.fundingAddress = fundingPayment.address;
+    result.fundingAddressVersion = bitcoin.address.fromBase58Check(fundingPayment.address).version;
     result.fundingScriptHash = fundingScriptHash;
     result.amountBaseUnits = amount;
     result.feeBaseUnits = fee;
@@ -214,11 +234,11 @@ try {
     result.fundingHistory = await rpc.request('blockchain.scripthash.get_history', [fundingScriptHash]);
     result.fundingUnspent = await rpc.request('blockchain.scripthash.listunspent', [fundingScriptHash]);
 
-    const fundingTx = await createAndBroadcastLegacyTransaction({
+    const fundingTx = await createAndBroadcastWrappedSegwitTransaction({
       rpc,
       keyPair: fundingKey,
-      sourceAddress: fundingAddress,
-      destinationAddress: generatedAddress,
+      sourcePayment: fundingPayment,
+      destinationAddress: generatedPayment.address,
       amount,
       fee,
       utxos: result.fundingUnspent,
@@ -227,11 +247,11 @@ try {
 
     const returnAmount = amount - fee;
     if (returnAmount < 546) throw new Error('Configured test amount is too small for the return transaction');
-    const returnTx = await createAndBroadcastLegacyTransaction({
+    const returnTx = await createAndBroadcastWrappedSegwitTransaction({
       rpc,
       keyPair: generatedKey,
-      sourceAddress: generatedAddress,
-      destinationAddress: fundingAddress,
+      sourcePayment: generatedPayment,
+      destinationAddress: fundingPayment.address,
       amount: returnAmount,
       fee,
       utxos: [
@@ -244,7 +264,7 @@ try {
       ],
     });
     result.returnTxid = returnTx.txid;
-    result.transactionTest = 'passed: generated wallet funded and returned funds through ElectrumX';
+    result.transactionTest = 'passed: generated wrapped-SegWit wallet funded and returned funds through ElectrumX';
 
     assert.match(fundingTx.txid, /^[0-9a-f]{64}$/i);
     assert.match(returnTx.txid, /^[0-9a-f]{64}$/i);
