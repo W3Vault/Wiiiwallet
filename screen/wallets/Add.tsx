@@ -8,7 +8,7 @@ import BlueButtonLink from '../../components/BlueButtonLink';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueText from '../../components/BlueText';
 import { HDLegacyP2PKHWallet } from '../../class/wallets/hd-legacy-p2pkh-wallet';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
 import { HDTaprootWallet } from '../../class/wallets/hd-taproot-wallet';
 import { LightningCustodianWallet } from '../../class/wallets/lightning-custodian-wallet';
 import presentAlert from '../../components/Alert';
@@ -64,7 +64,7 @@ interface TAction {
 }
 
 const index2walletType: Record<number, { text: string; subtitle: string; walletType: string }> = {
-  0: { subtitle: 'p2wpkh/HD', text: `${loc.multisig.native_segwit_title}`, walletType: HDSegwitBech32Wallet.type },
+  0: { subtitle: 'p2sh-p2wpkh/HD', text: 'Wiiicoin SegWit', walletType: HDSegwitP2SHWallet.type },
   1: { subtitle: 'p2pkh/HD', text: `${loc.multisig.legacy_title}`, walletType: HDLegacyP2PKHWallet.type },
   2: { subtitle: 'p2tr/HD', text: 'Taproot', walletType: HDTaprootWallet.type },
   3: {
@@ -334,7 +334,7 @@ const WalletsAdd: React.FC = () => {
     } else if (selectedWalletType === ButtonSelected.ARK) {
       createLightningArkWallet();
     } else if (selectedWalletType === ButtonSelected.ONCHAIN) {
-      let w: HDSegwitBech32Wallet | HDLegacyP2PKHWallet | HDTaprootWallet;
+      let w: HDSegwitP2SHWallet | HDLegacyP2PKHWallet | HDTaprootWallet;
 
       for (let c = 0; c < Object.values(index2walletType).length; c++) {
         if (c === selectedIndex) {
@@ -347,8 +347,8 @@ const WalletsAdd: React.FC = () => {
               w = new HDLegacyP2PKHWallet();
               w.setLabel(label || loc.wallets.details_title);
               break;
-            case HDSegwitBech32Wallet.type:
-              w = new HDSegwitBech32Wallet();
+            case HDSegwitP2SHWallet.type:
+              w = new HDSegwitP2SHWallet();
               w.setLabel(label || loc.wallets.details_title);
               break;
           }
@@ -373,7 +373,7 @@ const WalletsAdd: React.FC = () => {
         await saveToDisk();
 
         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
-        if (w.type === HDLegacyP2PKHWallet.type || w.type === HDSegwitBech32Wallet.type || w.type === HDTaprootWallet.type) {
+        if (w.type === HDLegacyP2PKHWallet.type || w.type === HDSegwitP2SHWallet.type || w.type === HDTaprootWallet.type) {
           navigate('PleaseBackup', {
             walletID: w.getID(),
           });
