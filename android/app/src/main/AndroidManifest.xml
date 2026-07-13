@@ -102,7 +102,7 @@
         <!-- Settings Activity alias for System Settings -->
         <activity-alias
             android:name=".SettingsActivityAlias"
-            android:label="Wiiicoin Settings"
+            android:label="Wiiiwallet Settings"
             android:exported="true"
             android:targetActivity=".SettingsActivity">
             <intent-filter>
