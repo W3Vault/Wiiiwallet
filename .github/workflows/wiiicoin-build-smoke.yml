@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
           grep -F '<string name="app_name">Wiiicoin</string>' android/app/src/main/res/values/strings.xml
           grep -F 'android:icon="@drawable/wiiicoin_logo"' android/app/src/main/AndroidManifest.xml
-          grep -F "name: 'Wiiicoin Explorer', url: 'https://wiiicoin.io'" models/blockExplorer.ts
+          grep -F "name: 'Wiiicoin Explorer', url: 'https://www.wiiicoin.io'" models/blockExplorer.ts
           grep -F "loc.units.BTC = 'WIII'" index.js
           grep -F 'fastestFee: 100' models/networkTransactionFees.ts
           grep -F 'mediumFee: 10' models/networkTransactionFees.ts
@@ -116,7 +116,7 @@ jobs:
           node --input-type=module <<'NODE' 2>&1 | tee wiiicoin-price-test.log
           import fs from 'node:fs';
 
-          const url = 'https://wiiicoin.io/ext/getsummary';
+          const url = 'https://www.wiiicoin.io/ext/getsummary';
           let lastError;
 
           for (let attempt = 1; attempt <= 3; attempt++) {
