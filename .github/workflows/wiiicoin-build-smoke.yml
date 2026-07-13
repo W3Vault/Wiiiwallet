@@ -94,6 +94,29 @@ jobs:
           NODE
           test -f node_modules/react-native-capture-protection/src/index.ts
 
+      - name: Test Wiiicoin BIP49 wallet and transaction signing
+        id: wiiicoin-unit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          npx jest tests/unit/wiiicoin-network.test.ts \
+            --runInBand \
+            --no-cache 2>&1 | tee wiiicoin-unit-test.log
+
+      - name: Upload Wiiicoin unit-test diagnostics
+        if: steps.wiiicoin-unit.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiicoin-unit-test-diagnostics
+          path: wiiicoin-unit-test.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after Wiiicoin unit-test failure
+        if: steps.wiiicoin-unit.outcome == 'failure'
+        run: exit 1
+
       - name: Generate wallet and test ElectrumX
         id: live-test
         continue-on-error: true
