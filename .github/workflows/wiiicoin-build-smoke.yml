@@ -71,6 +71,16 @@ jobs:
           npm run branch2json
           npm run patches
 
+      - name: Build capture-protection JavaScript package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd node_modules/react-native-capture-protection
+          npx --yes react-native-builder-bob@0.40.13 build
+          test -f lib/commonjs/index.js
+          test -f lib/module/index.js
+          test -f lib/typescript/index.d.ts
+
       - name: Generate wallet and test ElectrumX
         id: live-test
         continue-on-error: true
