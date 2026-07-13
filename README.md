@@ -43,6 +43,10 @@ npm start
 npx react-native run-ios
 ```
 
+### Downloadable Android test builds
+
+Pull requests and pushes to `master` run the **Build Downloadable Wiiiwallet APK** workflow. It produces a debug-signed `Wiiiwallet-debug.apk` artifact for direct installation and testing. Production distribution requires a separately signed release build.
+
 ## Tests
 
 ```bash
