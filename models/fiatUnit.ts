@@ -151,13 +151,11 @@ const RateExtractors = {
 
   BNR: async (): Promise<number> => {
     try {
-      // Fetching USD to RON rate
       const xmlData = await (await fetch('https://www.bnr.ro/nbrfxrates.xml')).text();
       const matches = xmlData.match(/<Rate currency="USD">([\d.]+)<\/Rate>/);
       if (matches && matches[1]) {
         const usdToRonRate = parseFloat(matches[1]);
         const btcToUsdRate = await RateExtractors.CoinGecko('USD');
-        // Convert BTC to RON using the USD to RON exchange rate
         return btcToUsdRate * usdToRonRate;
       }
       throw new Error('No valid USD to RON rate found');
@@ -238,7 +236,8 @@ export type FiatUnitType = {
   source: keyof typeof FiatUnitSource;
 };
 
-const WIIICOIN_SUMMARY_URL = 'https://wiiicoin.io/ext/getsummary';
+// The explorer's active TLS certificate covers www.wiiicoin.io.
+const WIIICOIN_SUMMARY_URL = 'https://www.wiiicoin.io/ext/getsummary';
 const WIIICOIN_SUMMARY_CACHE_MS = 60_000;
 let cachedWiiicoinSummary: WiiicoinSummaryResponse | null = null;
 let cachedWiiicoinSummaryAt = 0;
@@ -263,10 +262,10 @@ const getWiiicoinSummary = async (): Promise<WiiicoinSummaryResponse> => {
 /**
  * Return the value of one WIII in the selected fiat currency.
  *
- * wiiicoin.io exposes both lastUSDPrice and lastPrice (the primary BTC market
- * pair) through eIquidus /ext/getsummary. The explorer price is always the coin
- * valuation source; existing providers are used only for fiat conversion when
- * the user selects a currency other than USD.
+ * www.wiiicoin.io exposes both lastUSDPrice and lastPrice (the primary BTC
+ * market pair) through eIquidus /ext/getsummary. The explorer price is always
+ * the coin valuation source; existing providers are used only for fiat
+ * conversion when the user selects a currency other than USD.
  */
 export async function getFiatRate(ticker: string): Promise<number> {
   try {
