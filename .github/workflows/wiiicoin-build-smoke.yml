@@ -71,15 +71,28 @@ jobs:
           npm run branch2json
           npm run patches
 
-      - name: Build capture-protection JavaScript package
+      - name: Resolve capture-protection from checked-in source
         shell: bash
         run: |
           set -euo pipefail
-          cd node_modules/react-native-capture-protection
-          npx --yes react-native-builder-bob@0.40.13 build
-          test -f lib/commonjs/index.js
-          test -f lib/module/index.js
-          test -f lib/typescript/index.d.ts
+          node <<'NODE'
+          const fs = require('fs');
+          const packagePath = 'node_modules/react-native-capture-protection/package.json';
+          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          pkg.main = './src/index.ts';
+          pkg.module = './src/index.ts';
+          pkg.types = './src/index.ts';
+          pkg['react-native'] = './src/index.ts';
+          pkg.exports = pkg.exports || {};
+          pkg.exports['.'] = {
+            'react-native': './src/index.ts',
+            module: './src/index.ts',
+            'module-sync': './src/index.ts',
+            default: './src/index.ts',
+          };
+          fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+          test -f node_modules/react-native-capture-protection/src/index.ts
 
       - name: Generate wallet and test ElectrumX
         id: live-test
