@@ -79,6 +79,11 @@ interface CoinpaprikaResponse {
   };
 }
 
+interface WiiicoinSummaryResponse {
+  lastPrice?: string | number;
+  lastUSDPrice?: string | number;
+}
+
 const RateExtractors = {
   Coinbase: async (ticker: string): Promise<number> => {
     try {
@@ -147,7 +152,6 @@ const RateExtractors = {
   BNR: async (): Promise<number> => {
     try {
       // Fetching USD to RON rate
-
       const xmlData = await (await fetch('https://www.bnr.ro/nbrfxrates.xml')).text();
       const matches = xmlData.match(/<Rate currency="USD">([\d.]+)<\/Rate>/);
       if (matches && matches[1]) {
@@ -234,6 +238,62 @@ export type FiatUnitType = {
   source: keyof typeof FiatUnitSource;
 };
 
+const WIIICOIN_SUMMARY_URL = 'https://wiiicoin.io/ext/getsummary';
+const WIIICOIN_SUMMARY_CACHE_MS = 60_000;
+let cachedWiiicoinSummary: WiiicoinSummaryResponse | null = null;
+let cachedWiiicoinSummaryAt = 0;
+
+const getBitcoinFiatRate = async (ticker: string): Promise<number> => {
+  const unit = FiatUnit[ticker];
+  if (!unit) throw new Error(`Unsupported fiat currency: ${ticker}`);
+  return await RateExtractors[unit.source](ticker);
+};
+
+const getWiiicoinSummary = async (): Promise<WiiicoinSummaryResponse> => {
+  if (cachedWiiicoinSummary && Date.now() - cachedWiiicoinSummaryAt < WIIICOIN_SUMMARY_CACHE_MS) {
+    return cachedWiiicoinSummary;
+  }
+
+  const summary = (await fetchRate(WIIICOIN_SUMMARY_URL)) as WiiicoinSummaryResponse;
+  cachedWiiicoinSummary = summary;
+  cachedWiiicoinSummaryAt = Date.now();
+  return summary;
+};
+
+/**
+ * Return the value of one WIII in the selected fiat currency.
+ *
+ * wiiicoin.io exposes both lastUSDPrice and lastPrice (the primary BTC market
+ * pair) through eIquidus /ext/getsummary. The explorer price is always the coin
+ * valuation source; existing providers are used only for fiat conversion when
+ * the user selects a currency other than USD.
+ */
 export async function getFiatRate(ticker: string): Promise<number> {
-  return await RateExtractors[FiatUnit[ticker].source](ticker);
+  try {
+    const summary = await getWiiicoinSummary();
+    const wiiiUsd = Number(summary.lastUSDPrice);
+    const wiiiBtc = Number(summary.lastPrice);
+    const upperTicker = ticker.toUpperCase();
+
+    if (upperTicker === 'USD' && Number.isFinite(wiiiUsd) && wiiiUsd > 0) {
+      return wiiiUsd;
+    }
+
+    const btcFiat = await getBitcoinFiatRate(upperTicker);
+
+    if (Number.isFinite(wiiiUsd) && wiiiUsd > 0) {
+      const btcUsd = await getBitcoinFiatRate('USD');
+      if (!Number.isFinite(btcUsd) || btcUsd <= 0) throw new Error('Invalid BTC/USD conversion rate');
+      return wiiiUsd * (btcFiat / btcUsd);
+    }
+
+    if (Number.isFinite(wiiiBtc) && wiiiBtc > 0) {
+      return wiiiBtc * btcFiat;
+    }
+
+    throw new Error('The explorer did not return a positive WIII price');
+  } catch (error: any) {
+    handleError('wiiicoin.io', ticker, error);
+    return undefined as never;
+  }
 }
