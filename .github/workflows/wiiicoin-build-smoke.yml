@@ -94,6 +94,92 @@ jobs:
           NODE
           test -f node_modules/react-native-capture-protection/src/index.ts
 
+      - name: Verify Wiiicoin branding and configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F '<string name="app_name">Wiiicoin</string>' android/app/src/main/res/values/strings.xml
+          grep -F 'android:icon="@drawable/wiiicoin_logo"' android/app/src/main/AndroidManifest.xml
+          grep -F "name: 'Wiiicoin Explorer', url: 'https://wiiicoin.io'" models/blockExplorer.ts
+          grep -F "loc.units.BTC = 'WIII'" index.js
+          grep -F 'fastestFee: 100' models/networkTransactionFees.ts
+          grep -F 'mediumFee: 10' models/networkTransactionFees.ts
+          grep -F 'slowFee: 1' models/networkTransactionFees.ts
+          test -f android/app/src/main/res/drawable/wiiicoin_logo.xml
+
+      - name: Verify wiiicoin.io valuation source
+        id: wiiicoin-price
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --input-type=module <<'NODE' 2>&1 | tee wiiicoin-price-test.log
+          import fs from 'node:fs';
+
+          const url = 'https://wiiicoin.io/ext/getsummary';
+          let lastError;
+
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const response = await fetch(url, {
+                headers: {
+                  Accept: 'application/json',
+                  'User-Agent': 'Wiiicoin-Android-Build/1.0',
+                },
+              });
+              if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+              const summary = await response.json();
+              const lastUSDPrice = Number(summary.lastUSDPrice);
+              const lastPrice = Number(summary.lastPrice);
+              const hasUsdPrice = Number.isFinite(lastUSDPrice) && lastUSDPrice > 0;
+              const hasPairPrice = Number.isFinite(lastPrice) && lastPrice > 0;
+              if (!hasUsdPrice && !hasPairPrice) {
+                throw new Error(`No positive WIII valuation returned: ${JSON.stringify(summary)}`);
+              }
+
+              const result = {
+                generatedAt: new Date().toISOString(),
+                url,
+                lastUSDPrice: summary.lastUSDPrice,
+                lastPrice: summary.lastPrice,
+                source: 'wiiicoin.io',
+              };
+              fs.writeFileSync('wiiicoin-price-result.json', `${JSON.stringify(result, null, 2)}\n`);
+              console.log(JSON.stringify(result, null, 2));
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              console.error(`Valuation check attempt ${attempt} failed:`, error.message);
+              if (attempt < 3) await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+          }
+
+          throw lastError;
+          NODE
+
+      - name: Upload valuation diagnostics
+        if: steps.wiiicoin-price.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiicoin-price-diagnostics
+          path: wiiicoin-price-test.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload valuation result
+        if: steps.wiiicoin-price.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiicoin-price-result
+          path: wiiicoin-price-result.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Stop after valuation failure
+        if: steps.wiiicoin-price.outcome == 'failure'
+        run: exit 1
+
       - name: Test Wiiicoin BIP49 wallet and transaction signing
         id: wiiicoin-unit
         continue-on-error: true
@@ -202,7 +288,7 @@ jobs:
         if: steps.android-build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Wiiiwallet-android-arm64-standalone
+          name: Wiiicoin-android-arm64-standalone
           path: android/app/build/outputs/apk/standalone/app-standalone.apk
           if-no-files-found: error
           retention-days: 7
