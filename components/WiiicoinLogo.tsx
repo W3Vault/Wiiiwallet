@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, SvgProps } from 'react-native-svg';
+import Svg, { Path, type SvgProps } from 'react-native-svg';
 
 /** Vector rendering of the supplied Wiii_Logo_4.svg artwork. */
 const WiiicoinLogo: React.FC<SvgProps> = props => (
