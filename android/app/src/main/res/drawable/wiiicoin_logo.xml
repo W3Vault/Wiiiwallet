@@ -5,7 +5,7 @@
     android:viewportWidth="237.2"
     android:viewportHeight="237.2">
 
-    <!-- Vector rendering of the supplied Wiii_Logo_4.svg artwork. -->
+    <!-- Exact Android vector conversion of the supplied Wiii_Logo_4(1).svg artwork. -->
     <path
         android:fillColor="#A654A0"
         android:pathData="M93.1,192.9H58.9C51.7,192.9 45.8,187 45.8,179.8V57.4C45.8,50.2 51.7,44.3 58.9,44.3H64.3C71.5,44.3 77.4,50.2 77.4,57.4V178.8C78.2,186.8 85,193 93.1,193Z" />
