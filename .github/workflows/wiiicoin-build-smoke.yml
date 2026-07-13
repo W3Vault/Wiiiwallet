@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      run_live_transaction:
+        description: 'Run the funded ElectrumX round-trip transaction'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,7 +19,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
-      WIIICOIN_TEST_WIF: ${{ secrets.WIIICOIN_TEST_WIF }}
+      # Pull-request builds perform public ElectrumX checks without spending funds.
+      # The funded transaction runs only when explicitly enabled on workflow_dispatch.
+      WIIICOIN_TEST_WIF: ${{ github.event_name == 'workflow_dispatch' && inputs.run_live_transaction && secrets.WIIICOIN_TEST_WIF || '' }}
       WIIICOIN_TEST_AMOUNT_BASE_UNITS: ${{ vars.WIIICOIN_TEST_AMOUNT_BASE_UNITS || '1000000' }}
       WIIICOIN_TEST_FEE_BASE_UNITS: ${{ vars.WIIICOIN_TEST_FEE_BASE_UNITS || '100000' }}
 
@@ -93,7 +101,7 @@ jobs:
         if: steps.live-test.outcome == 'failure'
         run: exit 1
 
-      - name: Build Android arm64 debug APK
+      - name: Build Android arm64 standalone APK
         id: android-build
         continue-on-error: true
         working-directory: android
@@ -101,7 +109,7 @@ jobs:
         run: |
           set -o pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug \
+          ./gradlew assembleStandalone \
             -PreactNativeArchitectures=arm64-v8a \
             --build-cache \
             --parallel \
@@ -121,11 +129,11 @@ jobs:
         if: steps.android-build.outcome == 'failure'
         run: exit 1
 
-      - name: Upload Android APK
+      - name: Upload Android standalone APK
         if: steps.android-build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: Wiiiwallet-android-arm64-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Wiiiwallet-android-arm64-standalone
+          path: android/app/build/outputs/apk/standalone/app-standalone.apk
           if-no-files-found: error
           retention-days: 7
