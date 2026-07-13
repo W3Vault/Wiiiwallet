@@ -8,7 +8,7 @@ export interface BlockExplorer {
 }
 
 export const BLOCK_EXPLORERS: { [key: string]: BlockExplorer } = {
-  default: { key: 'default', name: 'Wiiicoin Explorer', url: 'https://wiiicoin.io' },
+  default: { key: 'default', name: 'Wiiicoin Explorer', url: 'https://www.wiiicoin.io' },
 };
 
 export const getBlockExplorersList = (): BlockExplorer[] => {
