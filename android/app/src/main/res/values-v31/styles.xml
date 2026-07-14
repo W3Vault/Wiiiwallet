@@ -1,0 +1,13 @@
+<resources>
+    <!-- Android 12+ system splash screen using the supplied wiii logo. -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="android:windowSplashScreenBackground">@color/wiiicoin_splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/wiiicoin_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">300</item>
+        <item name="android:windowBackground">@drawable/wiiiwallet_splash</item>
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
