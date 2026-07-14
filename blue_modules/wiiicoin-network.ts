@@ -27,11 +27,11 @@ export const WIIICOIN_DERIVATION_PATHS = {
   nativeSegwit: "m/84'/9999'/0'",
 } as const;
 
-// Default Wiiiwallet ElectrumX endpoint. The existing plain-TCP service port is
-// retained; only the host is changed to the dedicated etx1 endpoint.
+// Default Wiiiwallet ElectrumX endpoint. Connections use TLS/SSL on the
+// standard Electrum secure port so wallet traffic is encrypted in transit.
 export const WIIICOIN_ELECTRUM_SERVER = {
   host: 'etx1.wiiicoin.io',
-  tcp: 50001,
+  ssl: 50002,
 } as const;
 
 /**
