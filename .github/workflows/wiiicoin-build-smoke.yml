@@ -170,7 +170,7 @@ jobs:
           grep -F 'android:windowBackground">@drawable/wiiiwallet_splash' android/app/src/main/res/values/styles.xml
           grep -F 'android:windowSplashScreenAnimatedIcon">@drawable/wiiicoin_logo' android/app/src/main/res/values-v31/styles.xml
           grep -F "host: 'etx1.wiiicoin.io'" blue_modules/wiiicoin-network.ts
-          grep -F 'tcp: 50001' blue_modules/wiiicoin-network.ts
+          grep -F 'ssl: 50002' blue_modules/wiiicoin-network.ts
           grep -F 'standalone {' android/app/build.gradle
           grep -F 'debuggable false' android/app/build.gradle
           test -f components/WiiicoinLogo.tsx
@@ -263,21 +263,33 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-      - name: Check default ElectrumX endpoint
+      - name: Check default ElectrumX SSL endpoint
         continue-on-error: true
         shell: bash
         run: |
           node --input-type=module <<'NODE'
-          import net from 'node:net';
+          import tls from 'node:tls';
           const host = 'etx1.wiiicoin.io';
-          const port = 50001;
+          const port = 50002;
           await new Promise((resolve, reject) => {
-            const socket = net.connect({ host, port }, () => {
-              socket.end();
-              resolve();
-            });
-            socket.setTimeout(10000, () => socket.destroy(new Error('connection timeout')));
+            const socket = tls.connect(
+              {
+                host,
+                port,
+                servername: host,
+                rejectUnauthorized: true,
+              },
+              () => {
+                if (!socket.authorized) {
+                  reject(socket.authorizationError ?? new Error('TLS certificate was not authorized'));
+                  return;
+                }
+                socket.end();
+                resolve();
+              },
+            );
+            socket.setTimeout(10000, () => socket.destroy(new Error('TLS connection timeout')));
             socket.on('error', reject);
           });
-          console.log(`Connected to ${host}:${port}`);
+          console.log(`Connected securely to ${host}:${port}`);
           NODE
