@@ -1,6 +1,8 @@
 <resources>
     <color name="white">#FFF</color>
     <color name="background_color">#FFFFFF</color>
+    <color name="wiiicoin_brand">#A654A0</color>
+    <color name="wiiicoin_splash_background">#FFFFFF</color>
     <color name="widget_background">#FFFFFF</color>
     <color name="text_primary">#0C234F</color>
     <color name="text_secondary">#949494</color>
