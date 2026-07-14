@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
-const path = 'screen/wallets/Add.tsx';
-let source = fs.readFileSync(path, 'utf8');
+const walletTypePath = 'screen/wallets/Add.tsx';
+let walletTypeSource = fs.readFileSync(walletTypePath, 'utf8');
 
 const legacyMenu = "return selectedWalletType === ButtonSelected.ONCHAIN ? [walletAction, entropyActions] : [walletAction];";
 const hiddenMenu = "return selectedWalletType === ButtonSelected.ONCHAIN ? [entropyActions] : [];";
@@ -11,16 +11,70 @@ const singleTypeMarkers = [
   'addresses begin with 2',
 ];
 
-if (source.includes(legacyMenu)) {
-  source = source.replace(legacyMenu, hiddenMenu);
-  fs.writeFileSync(path, source);
+if (walletTypeSource.includes(legacyMenu)) {
+  walletTypeSource = walletTypeSource.replace(legacyMenu, hiddenMenu);
+  fs.writeFileSync(walletTypePath, walletTypeSource);
 }
 
-const singleTypeScreen = singleTypeMarkers.every(marker => source.includes(marker));
-const legacyMenuHidden = source.includes(hiddenMenu);
+const singleTypeScreen = singleTypeMarkers.every(marker => walletTypeSource.includes(marker));
+const legacyMenuHidden = walletTypeSource.includes(hiddenMenu);
 
 if (!singleTypeScreen && !legacyMenuHidden) {
   throw new Error('Add Wallet does not enforce Wiiicoin BIP49 P2SH as its only on-chain wallet type');
 }
 
+// Keep the internal BitcoinUnit.BTC identifier for upstream compatibility, but
+// display Wiiicoin's user-facing unit name inside an opened wallet.
+const walletHeaderPath = 'components/TransactionsNavigationHeader.tsx';
+let walletHeaderSource = fs.readFileSync(walletHeaderPath, 'utf8');
+const inheritedUnitDisplay =
+  "{unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit}";
+const wiiicoinUnitDisplay =
+  "{unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit === BitcoinUnit.BTC ? 'Wiii' : unit}";
+
+if (walletHeaderSource.includes(inheritedUnitDisplay)) {
+  walletHeaderSource = walletHeaderSource.replace(inheritedUnitDisplay, wiiicoinUnitDisplay);
+  fs.writeFileSync(walletHeaderPath, walletHeaderSource);
+}
+
+if (!fs.readFileSync(walletHeaderPath, 'utf8').includes(wiiicoinUnitDisplay)) {
+  throw new Error('Opened-wallet balance unit was not changed from BTC to Wiii');
+}
+
+// Use a transparent-corner vector so launchers display a round purple badge,
+// with the supplied Wiiicoin mark rendered in white inside the circle.
+const appIconPath = 'android/app/src/main/res/drawable/wiiicoin_app_icon.xml';
+const roundAppIcon = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="237.2"
+    android:viewportHeight="237.2">
+
+    <!-- Circular Wiiicoin badge; the area outside the circle is transparent. -->
+    <path
+        android:fillColor="#A654A0"
+        android:pathData="M118.6,6.6A112,112 0,1 1,118.6,230.6A112,112 0,1 1,118.6,6.6Z" />
+
+    <!-- Supplied Wiiicoin / wiii mark, reversed to white inside the badge. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M93.1,192.9H58.9C51.7,192.9 45.8,187 45.8,179.8V57.4C45.8,50.2 51.7,44.3 58.9,44.3H64.3C71.5,44.3 77.4,50.2 77.4,57.4V178.8C78.2,186.8 85,193 93.1,193Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M191.5,60.1V177.1C191.5,185.8 184.4,192.9 175.7,192.9H144.3C152.6,192.9 159.2,186.5 159.9,178.4V60.1C159.9,55.7 161.7,51.8 164.5,48.9C167.4,46 171.3,44.3 175.7,44.3C184.4,44.3 191.5,51.4 191.5,60.1Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M118.6,44.3C127.3,44.3 134.4,51.4 134.4,60.1V177.1C134.4,185.8 127.3,192.9 118.6,192.9C109.9,192.9 102.8,185.8 102.8,177.1V60.1C102.8,51.4 109.9,44.3 118.6,44.3Z" />
+</vector>
+`;
+fs.writeFileSync(appIconPath, roundAppIcon);
+
+const verifiedIcon = fs.readFileSync(appIconPath, 'utf8');
+if (!verifiedIcon.includes('M118.6,6.6A112,112') || !verifiedIcon.includes('android:fillColor="#FFFFFF"')) {
+  throw new Error('Round Wiiicoin launcher icon was not generated correctly');
+}
+
 console.log('Wiiicoin BIP49 P2SH is the only on-chain wallet type exposed by Add Wallet.');
+console.log('Opened-wallet balance unit displays Wiii.');
+console.log('Android launcher icon uses a round purple Wiiicoin badge with a white mark.');
