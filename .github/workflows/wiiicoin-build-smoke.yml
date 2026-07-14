@@ -29,6 +29,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android NDK
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "ndk;27.0.12077973"
+          test -d "$ANDROID_SDK_ROOT/ndk/27.0.12077973"
+
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
