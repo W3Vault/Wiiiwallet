@@ -87,13 +87,18 @@ jobs:
         run: |
           set -euo pipefail
           grep -F '<string name="app_name">Wiiiwallet</string>' android/app/src/main/res/values/strings.xml
-          grep -F 'android:icon="@drawable/wiiicoin_logo"' android/app/src/main/AndroidManifest.xml
-          grep -F 'android:roundIcon="@drawable/wiiicoin_logo"' android/app/src/main/AndroidManifest.xml
+          grep -F 'android:icon="@drawable/wiiicoin_app_icon"' android/app/src/main/AndroidManifest.xml
+          grep -F 'android:roundIcon="@drawable/wiiicoin_app_icon"' android/app/src/main/AndroidManifest.xml
+          grep -F "BTC: 'WIII'" models/bitcoinUnits.ts
+          grep -F 'android:windowBackground">@drawable/wiiiwallet_splash' android/app/src/main/res/values/styles.xml
+          grep -F 'android:windowSplashScreenAnimatedIcon">@drawable/wiiicoin_logo' android/app/src/main/res/values-v31/styles.xml
           grep -F "host: 'etx1.wiiicoin.io'" blue_modules/wiiicoin-network.ts
           grep -F 'tcp: 50001' blue_modules/wiiicoin-network.ts
           grep -F 'standalone {' android/app/build.gradle
           grep -F 'debuggable false' android/app/build.gradle
           test -f android/app/src/main/res/drawable/wiiicoin_logo.xml
+          test -f android/app/src/main/res/drawable/wiiicoin_app_icon.xml
+          test -f android/app/src/main/res/drawable/wiiiwallet_splash.xml
 
       - name: Test Wiiicoin wallet configuration
         id: wiiicoin-unit
