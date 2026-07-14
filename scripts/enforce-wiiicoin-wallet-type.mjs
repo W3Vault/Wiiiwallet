@@ -41,6 +41,61 @@ if (!fs.readFileSync(walletHeaderPath, 'utf8').includes(wiiicoinUnitDisplay)) {
   throw new Error('Opened-wallet balance unit was not changed from BTC to Wiii');
 }
 
+// Replace the inherited BlueWallet image embedded in receive QR codes with the
+// same round purple Wiiicoin badge used by the Android launcher.
+const qrCodePath = 'components/QRCode.tsx';
+let qrCodeSource = fs.readFileSync(qrCodePath, 'utf8');
+const inheritedQrImport =
+  "import Svg, { Defs, Image as SvgImage, LinearGradient, Path, Rect, Stop } from 'react-native-svg';";
+const wiiicoinQrImport = "import Svg, { Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';";
+
+if (qrCodeSource.includes(inheritedQrImport)) {
+  qrCodeSource = qrCodeSource.replace(inheritedQrImport, wiiicoinQrImport);
+}
+
+const inheritedQrLogo = [
+  '            <SvgImage',
+  '              testID="qr-logo-image"',
+  "              href={require('../img/qr-code.png')}",
+  '              x={logoCenter - logoSize / 2}',
+  '              y={logoCenter - logoSize / 2}',
+  '              width={logoSize}',
+  '              height={logoSize}',
+  '              preserveAspectRatio="xMidYMid meet"',
+  '            />',
+].join('\n');
+
+const wiiicoinQrLogo = [
+  '            <G',
+  '              testID="qr-wiiicoin-logo"',
+  '              transform={`translate(${logoCenter - logoSize / 2} ${logoCenter - logoSize / 2}) scale(${logoSize / 237.2})`}',
+  '            >',
+  '              <Rect x={6.6} y={6.6} width={224} height={224} rx={112} fill="#A654A0" />',
+  '              <Path',
+  '                fill="#FFFFFF"',
+  '                d="M93.1 192.9H58.9C51.7 192.9 45.8 187 45.8 179.8V57.4C45.8 50.2 51.7 44.3 58.9 44.3H64.3C71.5 44.3 77.4 50.2 77.4 57.4V178.8C78.2 186.8 85 193 93.1 193Z"',
+  '              />',
+  '              <Path',
+  '                fill="#FFFFFF"',
+  '                d="M191.5 60.1V177.1C191.5 185.8 184.4 192.9 175.7 192.9H144.3C152.6 192.9 159.2 186.5 159.9 178.4V60.1C159.9 55.7 161.7 51.8 164.5 48.9C167.4 46 171.3 44.3 175.7 44.3C184.4 44.3 191.5 51.4 191.5 60.1Z"',
+  '              />',
+  '              <Path',
+  '                fill="#FFFFFF"',
+  '                d="M118.6 44.3C127.3 44.3 134.4 51.4 134.4 60.1V177.1C134.4 185.8 127.3 192.9 118.6 192.9C109.9 192.9 102.8 185.8 102.8 177.1V60.1C102.8 51.4 109.9 44.3 118.6 44.3Z"',
+  '              />',
+  '            </G>',
+].join('\n');
+
+if (qrCodeSource.includes(inheritedQrLogo)) {
+  qrCodeSource = qrCodeSource.replace(inheritedQrLogo, wiiicoinQrLogo);
+}
+fs.writeFileSync(qrCodePath, qrCodeSource);
+
+const verifiedQrCode = fs.readFileSync(qrCodePath, 'utf8');
+if (!verifiedQrCode.includes('testID="qr-wiiicoin-logo"') || verifiedQrCode.includes("require('../img/qr-code.png')")) {
+  throw new Error('Receive QR code still contains the inherited BlueWallet centre icon');
+}
+
 // Use a transparent-corner vector so launchers display a round purple badge,
 // with the supplied Wiiicoin mark rendered in white inside the circle.
 const appIconPath = 'android/app/src/main/res/drawable/wiiicoin_app_icon.xml';
@@ -77,4 +132,5 @@ if (!verifiedIcon.includes('M118.6,6.6A112,112') || !verifiedIcon.includes('andr
 
 console.log('Wiiicoin BIP49 P2SH is the only on-chain wallet type exposed by Add Wallet.');
 console.log('Opened-wallet balance unit displays Wiii.');
+console.log('Receive QR codes use the round Wiiicoin app icon.');
 console.log('Android launcher icon uses a round purple Wiiicoin badge with a white mark.');
