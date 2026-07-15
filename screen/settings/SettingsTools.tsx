@@ -1,6 +1,7 @@
 import React from 'react';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc from '../../loc';
+import namespaceStrings from '../../loc/wiiicoinNamespace';
 import { SettingsScrollView, SettingsSection, SettingsListItem } from '../../components/platform';
 
 const SettingsTools: React.FC = () => {
@@ -11,6 +12,10 @@ const SettingsTools: React.FC = () => {
 
   const navigateToBroadcast = () => {
     navigation.navigate('Broadcast');
+  };
+
+  const navigateToNamespaces = () => {
+    navigation.navigate('NamespaceManager');
   };
 
   const navigateToGenerateWord = () => {
@@ -33,6 +38,15 @@ const SettingsTools: React.FC = () => {
           iconName="paperPlane"
           onPress={navigateToBroadcast}
           testID="Broadcast"
+          chevron
+          position="middle"
+        />
+        <SettingsListItem
+          title={namespaceStrings.title}
+          subtitle={namespaceStrings.selectWallet}
+          iconName="key"
+          onPress={navigateToNamespaces}
+          testID="Namespaces"
           chevron
           position="middle"
         />
