@@ -1,0 +1,37 @@
+name: Namespace diagnostics
+
+on:
+  push:
+    branches:
+      - agent/add-namespace-handling
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Specify node version
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install node modules
+        run: npm ci --silent
+
+      - name: Capture lint output
+        run: |
+          mkdir -p diagnostics
+          npm run lint > diagnostics/lint.txt 2>&1 || true
+
+      - name: Capture namespace unit output
+        run: npm run unit -- tests/unit/wiiicoin-namespace.test.ts --runInBand > diagnostics/unit.txt 2>&1 || true
+
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: namespace-diagnostics
+          path: diagnostics
+          if-no-files-found: error
