@@ -1,6 +1,8 @@
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import b58 from 'bs58check';
+import type { CoinSelectOutput, CoinSelectReturnInput, CoinSelectTarget, CoinSelectUtxo } from 'coinselect';
+import coinSelectAccumulative from 'coinselect/accumulative';
 import { ECPairFactory, ECPairInterface } from 'ecpair';
 
 import * as BlueElectrum from './BlueElectrum';
@@ -83,6 +85,8 @@ export type NamespaceTransactionResult = {
   tx: string;
   fee: number;
   namespaceId?: string;
+  controlTxid?: string;
+  controlVout?: number;
 };
 
 export type NamespaceWallet = AbstractHDElectrumWallet & {
@@ -330,7 +334,7 @@ async function refreshWallet(wallet: NamespaceWallet): Promise<Utxo[]> {
   await wallet.fetchBalance();
   await wallet.fetchTransactions();
   await wallet.fetchUtxo();
-  return wallet.getUtxo();
+  return wallet.getUtxo(true);
 }
 
 async function classifyNamespaceUtxos(
@@ -362,6 +366,7 @@ export async function fetchWalletNamespaces(wallet: NamespaceWallet): Promise<Na
     const { namespaceUtxos } = await classifyNamespaceUtxos(client, utxos);
     const summaries = await Promise.all(
       namespaceUtxos.map(async utxo => {
+        wallet.setUTXOMetadata(utxo.txid, utxo.vout, { frozen: true });
         const info = await getNamespaceInfo(client, utxo.namespaceId);
         return {
           namespaceId: utxo.namespaceId,
@@ -394,7 +399,27 @@ export async function fetchNamespaceKeyValues(namespaceId: string): Promise<Name
   });
 }
 
-function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: any[]): void {
+function selectNamespaceInputs(
+  utxos: Utxo[],
+  targets: CreateTransactionTarget[],
+  feeRate: number,
+): { inputs: CoinSelectReturnInput[]; outputs: CoinSelectOutput[]; fee: number } {
+  const preparedUtxos = JSON.parse(JSON.stringify(utxos)) as CoinSelectUtxo[];
+  const preparedTargets = JSON.parse(JSON.stringify(targets)) as CreateTransactionTarget[];
+
+  for (const utxo of preparedUtxos) {
+    if (!utxo.script?.length) utxo.script = { length: 50 };
+  }
+  for (const target of preparedTargets) {
+    if (target.script?.hex) target.script.length = target.script.hex.length / 2 - 4;
+  }
+
+  const { inputs, outputs, fee } = coinSelectAccumulative(preparedUtxos, preparedTargets as CoinSelectTarget[], feeRate);
+  if (!inputs || !outputs) throw new Error('Not enough spendable balance for the namespace transaction.');
+  return { inputs, outputs, fee };
+}
+
+function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: CoinSelectReturnInput[]): void {
   const keyPairs: ECPairInterface[] = [];
   inputs.forEach(input => {
     const address = String(input.address ?? '');
@@ -406,7 +431,7 @@ function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: a
   keyPairs.forEach((keyPair, index) => psbt.signInput(index, keyPair));
 }
 
-function addOutputs(psbt: bitcoin.Psbt, outputs: any[], namespaceScript: Uint8Array, changeAddress: string): void {
+function addOutputs(psbt: bitcoin.Psbt, outputs: CoinSelectOutput[], namespaceScript: Uint8Array, changeAddress: string): void {
   let namespaceOutputAdded = false;
   for (const output of outputs) {
     if (output.script?.hex && !namespaceOutputAdded) {
@@ -422,17 +447,21 @@ function addOutputs(psbt: bitcoin.Psbt, outputs: any[], namespaceScript: Uint8Ar
 
 function buildSignedTransaction(
   wallet: NamespaceWallet,
-  inputs: any[],
-  outputs: any[],
+  inputs: CoinSelectReturnInput[],
+  outputs: CoinSelectOutput[],
   namespaceScript: Uint8Array,
   changeAddress: string,
-): string {
+): Pick<NamespaceTransactionResult, 'tx' | 'controlTxid' | 'controlVout'> {
   const psbt = new bitcoin.Psbt({ network: WIIICOIN_NETWORK });
   psbt.setVersion(WIII_NAMESPACE_TX_VERSION);
   addAndSignInputs(wallet, psbt, inputs);
   addOutputs(psbt, outputs, namespaceScript, changeAddress);
   psbt.finalizeAllInputs();
-  return psbt.extractTransaction(true).toHex();
+
+  const transaction = psbt.extractTransaction(true);
+  const controlVout = transaction.outs.findIndex(output => uint8ArrayToHex(output.script) === uint8ArrayToHex(namespaceScript));
+  if (controlVout < 0) throw new Error('Unable to locate the namespace control output.');
+  return { tx: transaction.toHex(), controlTxid: transaction.getId(), controlVout };
 }
 
 async function estimateNamespaceFeeRate(): Promise<number> {
@@ -457,13 +486,13 @@ export async function createNamespace(wallet: NamespaceWallet, displayName: stri
     const targets: CreateTransactionTarget[] = [
       { value: WIII_NAMESPACE_VALUE, script: { hex: uint8ArrayToHex(dummyScript), length: dummyScript.length } },
     ];
-    const { inputs, outputs, fee } = wallet.coinselect(spendableUtxos, targets, feeRate);
-    if (!inputs || !outputs || inputs.length === 0) throw new Error('Not enough spendable balance to create a namespace.');
+    const { inputs, outputs, fee } = selectNamespaceInputs(spendableUtxos, targets, feeRate);
+    if (inputs.length === 0) throw new Error('Not enough spendable balance to create a namespace.');
     const sourceTxid = String(inputs[0].txid);
     const sourceVout = Number(inputs[0].vout);
     const namespaceScript = getNamespaceCreationScript(displayName.trim(), namespaceAddress, sourceTxid, sourceVout);
     return {
-      tx: buildSignedTransaction(wallet, inputs, outputs, namespaceScript, changeAddress),
+      ...buildSignedTransaction(wallet, inputs, outputs, namespaceScript, changeAddress),
       namespaceId: deriveNamespaceId(sourceTxid, sourceVout),
       fee,
     };
@@ -489,12 +518,11 @@ async function buildNamespaceMutation(
     const targets: CreateTransactionTarget[] = [
       { value: WIII_NAMESPACE_VALUE, script: { hex: uint8ArrayToHex(namespaceScript), length: namespaceScript.length } },
     ];
-    const { inputs, outputs, fee } = wallet.coinselect([namespaceUtxo, ...spendableUtxos], targets, feeRate);
-    if (!inputs || !outputs) throw new Error('Not enough spendable balance to update the namespace.');
+    const { inputs, outputs, fee } = selectNamespaceInputs([namespaceUtxo, ...spendableUtxos], targets, feeRate);
     const usesControlOutput = inputs.some(input => String(input.txid) === namespaceUtxo.txid && Number(input.vout) === namespaceUtxo.vout);
     if (!usesControlOutput) throw new Error('Namespace control output was not selected.');
     return {
-      tx: buildSignedTransaction(wallet, inputs, outputs, namespaceScript, namespaceUtxo.address),
+      ...buildSignedTransaction(wallet, inputs, outputs, namespaceScript, namespaceUtxo.address),
       fee,
     };
   });
