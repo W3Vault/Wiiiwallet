@@ -21,13 +21,16 @@ jobs:
       - name: Capture dependency installation
         run: |
           mkdir -p diagnostics
-          npm install --force > diagnostics/install.txt 2>&1 || true
+          npm install --ignore-scripts --legacy-peer-deps > diagnostics/install.txt 2>&1 || true
 
-      - name: Capture lint output
-        run: npm run lint > diagnostics/lint.txt 2>&1 || true
+      - name: Capture TypeScript output
+        run: npx tsc --noEmit > diagnostics/typescript.txt 2>&1 || true
+
+      - name: Capture ESLint output
+        run: npx eslint blue_modules/wiiicoin-namespace.ts screen/settings/NamespaceManager.tsx screen/settings/NamespaceDetails.tsx navigation/index.tsx navigation/DetailViewStackParamList.ts screen/settings/SettingsTools.tsx loc/wiiicoinNamespace.ts tests/unit/wiiicoin-namespace.test.ts > diagnostics/eslint.txt 2>&1 || true
 
       - name: Capture namespace unit output
-        run: npm run unit -- tests/unit/wiiicoin-namespace.test.ts --runInBand > diagnostics/unit.txt 2>&1 || true
+        run: npx jest tests/unit/wiiicoin-namespace.test.ts --runInBand > diagnostics/unit.txt 2>&1 || true
 
       - name: Upload diagnostics
         uses: actions/upload-artifact@v4
