@@ -114,11 +114,11 @@ const NamespaceManager: React.FC = () => {
         if (!authenticated) return;
       }
 
-      if (!(await BlueElectrum.ensureConnected())) throw new Error(loc.errors.network);
+      if (!(await BlueElectrum.ensureConnected())) throw new Error(namespaceStrings.networkError);
       await BlueElectrum.broadcastV2(transaction.tx);
       await saveToDisk();
       triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
-      presentAlert({ title: loc._.success, message: namespaceStrings.createSuccess(transaction.namespaceId) });
+      presentAlert({ title: namespaceStrings.successTitle, message: namespaceStrings.createSuccess(transaction.namespaceId) });
       await refreshNamespaces();
     } catch (error) {
       triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
