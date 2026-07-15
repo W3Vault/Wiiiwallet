@@ -1,7 +1,7 @@
 import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import b58 from 'bs58check';
-import { ECPairFactory } from 'ecpair';
+import { ECPairFactory, ECPairInterface } from 'ecpair';
 
 import * as BlueElectrum from './BlueElectrum';
 import ecc from './noble_ecc';
@@ -42,7 +42,7 @@ const KEY_VALUES_METHODS = [
 ];
 
 type NamespaceElectrumClient = {
-  initElectrum(config: { client: string; version: string }, policy?: { maxRetry: number; callback: (() => void) | null }): Promise<unknown>;
+  initElectrum(config: { client: string; version: string }, policy?: { maxRetry: number; callback: () => void }): Promise<unknown>;
   request(method: string, params: unknown[]): Promise<any>;
   blockchainScripthash_getHistory(scripthash: string): Promise<Array<{ tx_hash: string; height: number }>>;
   close(): void;
@@ -85,7 +85,7 @@ export type NamespaceTransactionResult = {
   namespaceId?: string;
 };
 
-type NamespaceWallet = AbstractHDElectrumWallet & {
+export type NamespaceWallet = AbstractHDElectrumWallet & {
   segwitType?: string;
   _getWifForAddress(address: string): string;
 };
@@ -122,9 +122,13 @@ function assertByteLength(value: string, limit: number, label: string): void {
 }
 
 export function namespaceToPayload(namespaceId: string): Uint8Array {
-  const decoded = b58.decode(namespaceId);
-  if (decoded.length !== 21 || decoded[0] !== 53) throw new Error('Invalid Wiiicoin namespace ID.');
-  return Uint8Array.from(decoded);
+  try {
+    const decoded = b58.decode(namespaceId);
+    if (decoded.length !== 21 || decoded[0] !== 53) throw new Error('invalid payload');
+    return Uint8Array.from(decoded);
+  } catch {
+    throw new Error('Invalid Wiiicoin namespace ID.');
+  }
 }
 
 export function payloadToNamespace(payload: Uint8Array): string {
@@ -230,12 +234,15 @@ export function isNamespaceCapableWallet(wallet: unknown): wallet is NamespaceWa
 
 async function connectNamespaceElectrum(): Promise<NamespaceElectrumClient> {
   const preferred = await BlueElectrum.getPreferredServer();
-  const peer = preferred?.host ? preferred : WIIICOIN_ELECTRUM_SERVER;
-  const port = peer.ssl || peer.tcp;
+  const host = preferred?.host ?? WIIICOIN_ELECTRUM_SERVER.host;
+  const ssl = preferred?.host ? preferred.ssl : WIIICOIN_ELECTRUM_SERVER.ssl;
+  const tcp = preferred?.host ? preferred.tcp : undefined;
+  const port = ssl ?? tcp;
   if (!port) throw new Error('No Wiiicoin Electrum server is configured.');
-  const client: NamespaceElectrumClient = new ElectrumClient(net, tls, port, peer.host, peer.ssl ? 'tls' : 'tcp');
+
+  const client: NamespaceElectrumClient = new ElectrumClient(net, tls, port, host, ssl ? 'tls' : 'tcp');
   client.onError = () => {};
-  await client.initElectrum({ client: 'Wiiiwallet', version: '1.4' }, { maxRetry: 0, callback: null });
+  await client.initElectrum({ client: 'Wiiiwallet', version: '1.4' }, { maxRetry: 0, callback: () => {} });
   return client;
 }
 
@@ -388,11 +395,11 @@ export async function fetchNamespaceKeyValues(namespaceId: string): Promise<Name
 }
 
 function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: any[]): void {
-  const keyPairs: ReturnType<typeof ECPair.fromWIF>[] = [];
+  const keyPairs: ECPairInterface[] = [];
   inputs.forEach(input => {
     const address = String(input.address ?? '');
+    if (!address) throw new Error('Unable to derive the signing key for a namespace input.');
     const wif = wallet._getWifForAddress(address);
-    if (!address || !wif) throw new Error('Unable to derive the signing key for a namespace input.');
     wallet._addPsbtInput(psbt, input, AbstractHDElectrumWallet.defaultRBFSequence, new Uint8Array([0, 0, 0, 0]));
     keyPairs.push(ECPair.fromWIF(wif, WIIICOIN_NETWORK));
   });
