@@ -100,11 +100,11 @@ const NamespaceDetails: React.FC = () => {
           if (!authenticated) return;
         }
 
-        if (!(await BlueElectrum.ensureConnected())) throw new Error(loc.errors.network);
+        if (!(await BlueElectrum.ensureConnected())) throw new Error(namespaceStrings.networkError);
         await BlueElectrum.broadcastV2(transaction.tx);
         await saveToDisk();
         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
-        presentAlert({ title: loc._.success, message: successMessage });
+        presentAlert({ title: namespaceStrings.successTitle, message: successMessage });
         if (leaveScreen) {
           navigation.goBack();
         } else {
