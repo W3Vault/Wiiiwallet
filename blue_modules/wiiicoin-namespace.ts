@@ -60,11 +60,7 @@ type NamespaceCoinSelectResult = {
   fee: number;
 };
 
-type AccumulativeCoinSelector = (
-  utxos: CoinSelectUtxo[],
-  targets: CoinSelectTarget[],
-  feeRate: number,
-) => NamespaceCoinSelectResult;
+type AccumulativeCoinSelector = (utxos: CoinSelectUtxo[], targets: CoinSelectTarget[], feeRate: number) => NamespaceCoinSelectResult;
 
 const coinSelectAccumulative = require('coinselect/accumulative') as AccumulativeCoinSelector;
 
@@ -442,12 +438,7 @@ function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: C
   keyPairs.forEach((keyPair, index) => psbt.signInput(index, keyPair));
 }
 
-function addOutputs(
-  psbt: bitcoin.Psbt,
-  outputs: NamespaceCoinSelectOutput[],
-  namespaceScript: Uint8Array,
-  changeAddress: string,
-): void {
+function addOutputs(psbt: bitcoin.Psbt, outputs: NamespaceCoinSelectOutput[], namespaceScript: Uint8Array, changeAddress: string): void {
   let namespaceOutputAdded = false;
   for (const output of outputs) {
     if (output.script?.hex && !namespaceOutputAdded) {
