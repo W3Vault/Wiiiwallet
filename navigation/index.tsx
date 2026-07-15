@@ -173,13 +173,17 @@ const MainRoot = () => {
           <DetailViewStack.Screen
             name="NamespaceDetails"
             component={LazyNamespaceDetails}
-            options={({ route }) =>
-              navigationStyle({
-                title: route.params.displayName || namespaceStrings.detailsTitle,
+            options={navigationStyle(
+              {
+                title: namespaceStrings.detailsTitle,
                 presentation: 'card',
                 headerShown: true,
-              })(theme)
-            }
+              },
+              (options, { route }) => ({
+                ...options,
+                title: route.params.displayName || namespaceStrings.detailsTitle,
+              }),
+            )(theme)}
           />
           <DetailViewStack.Screen
             name="SignVerifyRoot"
