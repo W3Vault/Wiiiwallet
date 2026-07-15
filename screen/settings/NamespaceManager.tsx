@@ -7,16 +7,10 @@ import {
   fetchWalletNamespaces,
   isNamespaceCapableWallet,
   NamespaceRpcUnavailableError,
-  NamespaceSummary,
+  type NamespaceSummary,
 } from '../../blue_modules/wiiicoin-namespace';
 import presentAlert from '../../components/Alert';
-import {
-  SettingsListItem,
-  SettingsScrollView,
-  SettingsSection,
-  SettingsSectionHeader,
-  SettingsSubtitle,
-} from '../../components/platform';
+import { SettingsListItem, SettingsScrollView, SettingsSection, SettingsSectionHeader, SettingsSubtitle } from '../../components/platform';
 import { useBiometrics, unlockWithBiometrics } from '../../hooks/useBiometrics';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
