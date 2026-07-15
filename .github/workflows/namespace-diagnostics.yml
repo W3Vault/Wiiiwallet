@@ -1,9 +1,9 @@
 name: Namespace diagnostics
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/add-namespace-handling
+      - master
 
 jobs:
   diagnostics:
