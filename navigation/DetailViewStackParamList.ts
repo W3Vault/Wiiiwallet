@@ -112,6 +112,13 @@ export type DetailViewStackParamList = {
   SelfTest: undefined;
   ReleaseNotes: undefined;
   SettingsTools: undefined;
+  NamespaceManager: undefined;
+  NamespaceDetails: {
+    walletID: string;
+    namespaceId: string;
+    displayName?: string;
+    ownerAddress?: string;
+  };
   ViewEditMultisigCosigners: {
     walletID: string;
     cosigners: string[];
