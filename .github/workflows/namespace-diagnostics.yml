@@ -19,7 +19,7 @@ jobs:
           cache: npm
 
       - name: Install node modules
-        run: npm ci --silent
+        run: npm install --silent
 
       - name: Capture lint output
         run: |
