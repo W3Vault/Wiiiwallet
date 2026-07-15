@@ -102,6 +102,9 @@ const NamespaceDetails: React.FC = () => {
 
         if (!(await BlueElectrum.ensureConnected())) throw new Error(namespaceStrings.networkError);
         await BlueElectrum.broadcastV2(transaction.tx);
+        if (!leaveScreen && transaction.controlTxid && transaction.controlVout !== undefined) {
+          namespaceWallet.setUTXOMetadata(transaction.controlTxid, transaction.controlVout, { frozen: true });
+        }
         await saveToDisk();
         triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
         presentAlert({ title: namespaceStrings.successTitle, message: successMessage });
