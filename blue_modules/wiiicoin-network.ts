@@ -15,7 +15,9 @@ export const WIIICOIN_NETWORK: bitcoin.Network = {
     private: 0x0488ade4,
   },
   pubKeyHash: 0x87,
-  scriptHash: 0x7d,
+  // Wiiicoin Core generates P2SH-wrapped SegWit addresses such as 2a1Q....
+  // Base58Check decoding confirms these use version byte 0x03.
+  scriptHash: 0x03,
   wif: 0x89,
 };
 
@@ -25,8 +27,10 @@ export const WIIICOIN_DERIVATION_PATHS = {
   nativeSegwit: "m/84'/9999'/0'",
 } as const;
 
+// Default Wiiiwallet ElectrumX endpoint. Connections use TLS/SSL on the
+// standard Electrum secure port so wallet traffic is encrypted in transit.
 export const WIIICOIN_ELECTRUM_SERVER = {
-  host: 'wiiicoin.io',
+  host: 'etx1.wiiicoin.io',
   ssl: 50002,
 } as const;
 

@@ -22,7 +22,7 @@ import {
 import { useSettings } from '../../hooks/context/useSettings';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import loc from '../../loc';
-import { FiatUnit, FiatUnitSource, FiatUnitType, getFiatRate } from '../../models/fiatUnit';
+import { FiatUnit, FiatUnitType, getFiatRate } from '../../models/fiatUnit';
 
 dayjs.extend(calendar);
 
@@ -139,9 +139,7 @@ const Currency: React.FC = () => {
       <SettingsSection compact>
         <View style={styles.infoWrapper}>
           <SettingsCard style={styles.infoCard}>
-            <SettingsText style={styles.infoTitle}>
-              {loc.settings.currency_source} {selectedCurrency?.source ?? FiatUnitSource.CoinDesk}
-            </SettingsText>
+            <SettingsText style={styles.infoTitle}>{loc.settings.currency_source} wiiicoin.io</SettingsText>
             <SettingsSubtitle style={styles.infoSubtitle}>
               {loc.settings.rate}: {currencyRate.Rate ?? loc._.never}
             </SettingsSubtitle>
@@ -152,7 +150,7 @@ const Currency: React.FC = () => {
         </View>
       </SettingsSection>
     );
-  }, [isSearchFocused, selectedCurrencyVisible, selectedCurrency?.source, currencyRate]);
+  }, [isSearchFocused, selectedCurrencyVisible, currencyRate]);
 
   return (
     <SettingsFlatList

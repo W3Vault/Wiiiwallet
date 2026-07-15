@@ -15,7 +15,7 @@ import { TaprootWallet } from './wallets/taproot-wallet.ts';
 import { LightningArkWallet } from './wallets/lightning-ark-wallet.ts';
 
 export default class WalletGradient {
-  static hdSegwitP2SHWallet: string[] = ['#007AFF', '#0040FF'];
+  static hdSegwitP2SHWallet: string[] = ['#B66AB0', '#8C3E86'];
   static hdSegwitBech32Wallet: string[] = ['#6CD9FC', '#44BEE5'];
   static segwitBech32Wallet: string[] = ['#6CD9FC', '#44BEE5'];
   static watchOnlyWallet: string[] = ['#474646', '#282828'];

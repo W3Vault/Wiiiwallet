@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="237.2"
+    android:viewportHeight="237.2">
+
+    <!-- White field prevents Android from falling back to the inherited blue icon. -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M0,0H237.2V237.2H0Z" />
+
+    <!-- Supplied wiii/Wiiicoin mark. -->
+    <path
+        android:fillColor="#A654A0"
+        android:pathData="M93.1,192.9H58.9C51.7,192.9 45.8,187 45.8,179.8V57.4C45.8,50.2 51.7,44.3 58.9,44.3H64.3C71.5,44.3 77.4,50.2 77.4,57.4V178.8C78.2,186.8 85,193 93.1,193Z" />
+    <path
+        android:fillColor="#A654A0"
+        android:pathData="M191.5,60.1V177.1C191.5,185.8 184.4,192.9 175.7,192.9H144.3C152.6,192.9 159.2,186.5 159.9,178.4V60.1C159.9,55.7 161.7,51.8 164.5,48.9C167.4,46 171.3,44.3 175.7,44.3C184.4,44.3 191.5,51.4 191.5,60.1Z" />
+    <path
+        android:fillColor="#A654A0"
+        android:pathData="M118.6,44.3C127.3,44.3 134.4,51.4 134.4,60.1V177.1C134.4,185.8 127.3,192.9 118.6,192.9C109.9,192.9 102.8,185.8 102.8,177.1V60.1C102.8,51.4 109.9,44.3 118.6,44.3Z" />
+</vector>
