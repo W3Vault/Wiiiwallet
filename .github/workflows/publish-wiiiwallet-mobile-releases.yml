@@ -1,0 +1,315 @@
+name: Publish Wiiiwallet Android and iOS beta releases
+
+on:
+  pull_request:
+    branches: [master]
+    types: [synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiiiwallet-mobile-beta-release
+  cancel-in-progress: true
+
+env:
+  RELEASE_VERSION: 8.0.1
+  RELEASE_SUFFIX: wiiiwallet-beta.1
+  ANDROID_TAG: android-v8.0.1-wiiiwallet-beta.1
+  IOS_TAG: ios-v8.0.1-wiiiwallet-beta.1
+
+jobs:
+  android:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'agent/wiiiwallet-branding-ndk-final'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.3.0'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "ndk;27.0.12077973"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install JavaScript dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Apply Wiiiwallet build preparation
+        run: |
+          npm run releasenotes2json
+          npm run branch2json
+          npm run patches
+
+      - name: Prepare standalone bundle dependency
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const packagePath = 'node_modules/react-native-capture-protection/package.json';
+          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          pkg.main = './src/index.ts';
+          pkg.module = './src/index.ts';
+          pkg.types = './src/index.ts';
+          pkg['react-native'] = './src/index.ts';
+          pkg.exports = pkg.exports || {};
+          pkg.exports['.'] = {
+            'react-native': './src/index.ts',
+            module: './src/index.ts',
+            'module-sync': './src/index.ts',
+            default: './src/index.ts',
+          };
+          fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+
+      - name: Build Android standalone APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleStandalone \
+            -PreactNativeArchitectures=arm64-v8a \
+            --build-cache \
+            --parallel \
+            --no-daemon \
+            --stacktrace
+
+      - name: Prepare Android release files
+        shell: bash
+        run: |
+          mkdir -p release/android
+          cp android/app/build/outputs/apk/standalone/app-standalone.apk \
+            release/android/Wiiiwallet-Android-${RELEASE_VERSION}-${RELEASE_SUFFIX}.apk
+          cd release/android
+          sha256sum Wiiiwallet-Android-${RELEASE_VERSION}-${RELEASE_SUFFIX}.apk > SHA256SUMS.txt
+
+      - name: Upload Android release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiiwallet-android-release
+          path: release/android
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  ios:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'agent/wiiiwallet-branding-ndk-final'
+    runs-on: macos-26-arm64
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.3.0'
+          cache: npm
+
+      - name: Set up Ruby and Bundler
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Install JavaScript dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Apply Wiiiwallet build preparation
+        run: |
+          npm run releasenotes2json
+          npm run branch2json
+          npm run patches
+
+      - name: Generate Wiiiwallet iOS app icons
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/icon-venv"
+          "$RUNNER_TEMP/icon-venv/bin/pip" install --quiet pillow
+          "$RUNNER_TEMP/icon-venv/bin/python" <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+
+          purple = (166, 84, 160)
+          white = (255, 255, 255)
+          icon_dir = Path('ios/BlueWallet/Images.xcassets/AppIcon.appiconset')
+
+          def make_icon(path: Path, size: int, background=white, badge=purple, mark=white):
+              image = Image.new('RGB', (size, size), background)
+              draw = ImageDraw.Draw(image)
+              margin = int(size * 0.055)
+              draw.ellipse((margin, margin, size - margin, size - margin), fill=badge)
+              top = int(size * 0.20)
+              bottom = int(size * 0.80)
+              bar_width = int(size * 0.13)
+              radius = bar_width // 2
+              centres = (int(size * 0.31), int(size * 0.50), int(size * 0.69))
+              for centre in centres:
+                  draw.rounded_rectangle(
+                      (centre - bar_width // 2, top, centre + bar_width // 2, bottom),
+                      radius=radius,
+                      fill=mark,
+                  )
+              image.save(path, format='PNG', optimize=True)
+
+          make_icon(icon_dir / 'BlueWallet-1024.png', 1024)
+          make_icon(icon_dir / '1024.png', 1024, background=(25, 15, 28), badge=purple)
+          make_icon(icon_dir / '1024 1.png', 1024, background=white, badge=(95, 95, 95))
+          make_icon(icon_dir / '1024 2.png', 1024)
+          PY
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: bundle exec pod install
+
+      - name: Build unsigned iOS Simulator app
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/BlueWallet.xcworkspace \
+            -scheme BlueWallet \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            BUILD_DIR="$RUNNER_TEMP/wiiiwallet-ios-build" \
+            clean build | tee ios-simulator-build.log
+
+      - name: Prepare iOS release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$RUNNER_TEMP/wiiiwallet-ios-build" -type d -name '*.app' -path '*Release-iphonesimulator*' | head -1)
+          test -n "$APP_PATH"
+          mkdir -p release/ios
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" \
+            "release/ios/Wiiiwallet-iOS-Simulator-${RELEASE_VERSION}-${RELEASE_SUFFIX}.zip"
+          cat > release/ios/INSTALLATION.txt <<'TXT'
+          Wiiiwallet iOS Simulator beta
+
+          This archive is an unsigned iOS Simulator build for development and review.
+          It cannot be installed on a physical iPhone or distributed through TestFlight.
+          A device IPA requires the W3Vault Apple distribution certificate,
+          provisioning profile and App Store Connect credentials.
+          TXT
+          cd release/ios
+          shasum -a 256 Wiiiwallet-iOS-Simulator-${RELEASE_VERSION}-${RELEASE_SUFFIX}.zip > SHA256SUMS.txt
+
+      - name: Upload iOS release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiiiwallet-ios-release
+          path: release/ios
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'agent/wiiiwallet-branding-ndk-final'
+    needs: [android, ios]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wiiiwallet-android-release
+          path: release/android
+
+      - name: Download iOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wiiiwallet-ios-release
+          path: release/ios
+
+      - name: Publish Android beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          gh release delete "$ANDROID_TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          cat > android-notes.md <<'MD'
+          ## Wiiiwallet Android beta
+
+          Installable arm64 Android build for Wiiicoin testing.
+
+          Included:
+          - Wiiicoin network and wallet derivation
+          - SSL ElectrumX connection to `etx1.wiiicoin.io:50002`
+          - Wiiicoin purple wallet cards and white watermark
+          - Round Wiiicoin launcher and QR-code icons
+          - Embedded React Native bundle; Metro is not required
+          - Wiii balance labels
+          - GBP-denominated Wiiicoin value configuration
+
+          This APK is debug-signed for direct testing and is not Play Store production-signed.
+          Back up all recovery phrases before replacing an earlier test build.
+          MD
+          gh release create "$ANDROID_TAG" \
+            release/android/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_SHA" \
+            --title "Wiiiwallet Android ${RELEASE_VERSION} Beta 1" \
+            --notes-file android-notes.md \
+            --prerelease
+
+      - name: Publish iOS beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          gh release delete "$IOS_TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag || true
+          cat > ios-notes.md <<'MD'
+          ## Wiiiwallet iOS beta
+
+          Unsigned iOS Simulator build for development and interface review.
+
+          Included:
+          - Wiiiwallet visible name and Wiiicoin terminology
+          - Wiiicoin icon artwork
+          - Wiiicoin network and SSL ElectrumX configuration
+          - Round Wiiicoin icon in receive QR codes
+          - GBP-denominated Wiiicoin value configuration
+
+          This archive cannot be installed on a physical iPhone and is not a TestFlight IPA.
+          A device release still requires W3Vault Apple distribution signing,
+          provisioning profiles and App Store Connect credentials.
+          MD
+          gh release create "$IOS_TAG" \
+            release/ios/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_SHA" \
+            --title "Wiiiwallet iOS ${RELEASE_VERSION} Beta 1" \
+            --notes-file ios-notes.md \
+            --prerelease
