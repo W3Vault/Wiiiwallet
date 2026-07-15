@@ -80,6 +80,7 @@ const NamespaceManager: React.FC = () => {
     try {
       const result = await fetchWalletNamespaces(selectedWallet);
       setNamespaces(result);
+      await saveToDisk();
     } catch (error) {
       setNamespaces([]);
       triggerHapticFeedback(HapticFeedbackTypes.NotificationError);
@@ -87,7 +88,7 @@ const NamespaceManager: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedWallet]);
+  }, [saveToDisk, selectedWallet]);
 
   useEffect(() => {
     refreshNamespaces().catch(() => {});
@@ -116,6 +117,9 @@ const NamespaceManager: React.FC = () => {
 
       if (!(await BlueElectrum.ensureConnected())) throw new Error(namespaceStrings.networkError);
       await BlueElectrum.broadcastV2(transaction.tx);
+      if (transaction.controlTxid && transaction.controlVout !== undefined) {
+        selectedWallet.setUTXOMetadata(transaction.controlTxid, transaction.controlVout, { frozen: true });
+      }
       await saveToDisk();
       triggerHapticFeedback(HapticFeedbackTypes.NotificationSuccess);
       presentAlert({ title: namespaceStrings.successTitle, message: namespaceStrings.createSuccess(transaction.namespaceId) });
