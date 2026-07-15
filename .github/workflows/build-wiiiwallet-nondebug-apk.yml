@@ -1,0 +1,236 @@
+name: Build Wiiiwallet non-debug APK
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiiiwallet-nondebug-apk-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-release-apk:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'agent/wiiiwallet-nondebug-release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.3.0'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android components
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          test -d "$ANDROID_SDK_ROOT/ndk/27.0.12077973"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install JavaScript dependencies
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Apply Wiiiwallet preparation
+        run: |
+          npm run releasenotes2json
+          npm run branch2json
+          npm run patches
+
+      - name: Apply final Wiiicoin UI patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+
+          const replaceIfPresent = (file, before, after) => {
+            const source = fs.readFileSync(file, 'utf8');
+            if (source.includes(after)) return;
+            if (!source.includes(before)) throw new Error(`Expected fragment missing in ${file}`);
+            fs.writeFileSync(file, source.replace(before, after));
+          };
+
+          const unitsPath = 'models/bitcoinUnits.ts';
+          let units = fs.readFileSync(unitsPath, 'utf8');
+          units = units.replace("  BTC: 'WIII',", "  BTC: 'BTC',");
+          fs.writeFileSync(unitsPath, units);
+
+          replaceIfPresent(
+            'components/WalletsCarousel.tsx',
+            "import { BlueSpacing10 } from './BlueSpacing';",
+            "import { BlueSpacing10 } from './BlueSpacing';\nimport WiiicoinLogo from './WiiicoinLogo';",
+          );
+          replaceIfPresent(
+            'components/WalletsCarousel.tsx',
+            "      default:\n        image = direction === 'rtl' ? require('../img/btc-shape-rtl.png') : require('../img/btc-shape.png');",
+            "      default:\n        image = undefined;",
+          );
+          replaceIfPresent(
+            'components/WalletsCarousel.tsx',
+            "              <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />",
+            `              {image ? (\n                <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />\n              ) : (\n                <WiiicoinLogo\n                  width={isCompact ? 78 : 99}\n                  height={isCompact ? 74 : 94}\n                  style={[iStyles.image, isCompact && iStyles.imageCompact]}\n                  opacity={0.28}\n                />\n              )}`,
+          );
+
+          const unlockPath = 'screen/UnlockWith.tsx';
+          let unlock = fs.readFileSync(unlockPath, 'utf8');
+          if (!unlock.includes("import WiiicoinLogo from '../components/WiiicoinLogo';")) {
+            unlock = unlock.replace('  Image,\n', '');
+            unlock = unlock.replace(
+              "import { PasswordInput, PasswordInputHandle } from '../components/PasswordInput';",
+              "import { PasswordInput, PasswordInputHandle } from '../components/PasswordInput';\nimport WiiicoinLogo from '../components/WiiicoinLogo';",
+            );
+            unlock = unlock.replace(
+              '  const keyboardOffset = useRef(new Animated.Value(0)).current;',
+              '  const keyboardOffset = useRef(new Animated.Value(0)).current;\n  const logoRotation = useRef(new Animated.Value(0)).current;',
+            );
+            unlock = unlock.replace(
+              `  useEffect(() => {\n    setWalletsInitialized(false);\n  }, [setWalletsInitialized]);`,
+              `  useEffect(() => {\n    setWalletsInitialized(false);\n  }, [setWalletsInitialized]);\n\n  useEffect(() => {\n    if (!state.isAuthenticating) {\n      logoRotation.stopAnimation();\n      logoRotation.setValue(0);\n      return;\n    }\n\n    logoRotation.setValue(0);\n    const animation = Animated.loop(\n      Animated.timing(logoRotation, {\n        toValue: 1,\n        duration: 1200,\n        easing: Easing.linear,\n        useNativeDriver: true,\n      }),\n    );\n    animation.start();\n    return () => animation.stop();\n  }, [state.isAuthenticating, logoRotation]);`,
+            );
+            unlock = unlock.replace(
+              `              <Image source={require('../img/icon.png')} style={styles.logoImage} resizeMode="contain" />`,
+              `              <Animated.View\n                style={[\n                  styles.logoImage,\n                  {\n                    transform: [\n                      {\n                        rotate: logoRotation.interpolate({\n                          inputRange: [0, 1],\n                          outputRange: ['0deg', '360deg'],\n                        }),\n                      },\n                    ],\n                  },\n                ]}\n              >\n                <WiiicoinLogo width={100} height={75} />\n              </Animated.View>`,
+            );
+            fs.writeFileSync(unlockPath, unlock);
+          }
+          NODE
+
+      - name: Prepare bundle dependency
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const packagePath = 'node_modules/react-native-capture-protection/package.json';
+          const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          pkg.main = './src/index.ts';
+          pkg.module = './src/index.ts';
+          pkg.types = './src/index.ts';
+          pkg['react-native'] = './src/index.ts';
+          pkg.exports = pkg.exports || {};
+          pkg.exports['.'] = {
+            'react-native': './src/index.ts',
+            module: './src/index.ts',
+            'module-sync': './src/index.ts',
+            default: './src/index.ts',
+          };
+          fs.writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
+          NODE
+
+      - name: Verify release source configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F "host: 'etx1.wiiicoin.io'" blue_modules/wiiicoin-network.ts
+          grep -F 'ssl: 50002' blue_modules/wiiicoin-network.ts
+          grep -F 'const WIIICOIN_GBP_RATE = 10;' blue_modules/currency.ts
+          grep -F 'testID="qr-wiiicoin-logo"' components/QRCode.tsx
+          grep -F "import WiiicoinLogo from './WiiicoinLogo';" components/WalletsCarousel.tsx
+          grep -F "import WiiicoinLogo from '../components/WiiicoinLogo';" screen/UnlockWith.tsx
+          grep -F '<string name="app_name">Wiiiwallet</string>' android/app/src/main/res/values/strings.xml
+
+      - name: Build non-debug release APK
+        working-directory: android
+        shell: bash
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -PreactNativeArchitectures=arm64-v8a \
+            --build-cache \
+            --parallel \
+            --no-daemon \
+            --stacktrace
+
+      - name: Sign release APK
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_FILE_HEX: ${{ secrets.KEYSTORE_FILE_HEX }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          UNSIGNED_APK='android/app/build/outputs/apk/release/app-release-unsigned.apk'
+          FALLBACK_APK='android/app/build/outputs/apk/release/app-release.apk'
+          OUTPUT_DIR='release-apk'
+          OUTPUT_APK="$OUTPUT_DIR/Wiiiwallet-release-arm64.apk"
+          mkdir -p "$OUTPUT_DIR"
+
+          if [ -f "$UNSIGNED_APK" ]; then
+            cp "$UNSIGNED_APK" "$OUTPUT_APK"
+          elif [ -f "$FALLBACK_APK" ]; then
+            cp "$FALLBACK_APK" "$OUTPUT_APK"
+          else
+            echo 'Release APK output not found' >&2
+            exit 1
+          fi
+
+          if [ -n "${KEYSTORE_FILE_HEX:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ]; then
+            echo "$KEYSTORE_FILE_HEX" | xxd -r -p > "$RUNNER_TEMP/wiiiwallet-release.keystore"
+            KEYSTORE="$RUNNER_TEMP/wiiiwallet-release.keystore"
+            PASSWORD="$KEYSTORE_PASSWORD"
+            SIGNING_MODE='repository-release-key'
+          else
+            KEYSTORE="$RUNNER_TEMP/wiiiwallet-release.keystore"
+            PASSWORD="release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            keytool -genkeypair \
+              -keystore "$KEYSTORE" \
+              -storepass "$PASSWORD" \
+              -keypass "$PASSWORD" \
+              -alias wiiiwallet-release \
+              -keyalg RSA \
+              -keysize 4096 \
+              -validity 9125 \
+              -dname 'CN=Wiiiwallet Release,O=W3Vault Limited,C=GB'
+            SIGNING_MODE='temporary-release-key'
+          fi
+
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort -V | tail -1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" sign --ks "$KEYSTORE" --ks-pass "pass:$PASSWORD" "$OUTPUT_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$OUTPUT_APK" | tee "$OUTPUT_DIR/signing-certificate.txt"
+
+          APKANALYZER=$(find "$ANDROID_SDK_ROOT" -name apkanalyzer -type f | head -1 || true)
+          if [ -n "$APKANALYZER" ]; then
+            DEBUGGABLE=$("$APKANALYZER" manifest debuggable "$OUTPUT_APK")
+            echo "debuggable=$DEBUGGABLE" | tee "$OUTPUT_DIR/build-metadata.txt"
+            test "$DEBUGGABLE" = 'false'
+          else
+            echo 'debuggable=false (release variant; apkanalyzer unavailable)' | tee "$OUTPUT_DIR/build-metadata.txt"
+          fi
+
+          echo "signing_mode=$SIGNING_MODE" | tee -a "$OUTPUT_DIR/build-metadata.txt"
+          echo "architecture=arm64-v8a" | tee -a "$OUTPUT_DIR/build-metadata.txt"
+          sha256sum "$OUTPUT_APK" > "$OUTPUT_DIR/SHA256SUMS.txt"
+          echo "signing_mode=$SIGNING_MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload non-debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wiiiwallet-nondebug-release-apk
+          path: release-apk
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
