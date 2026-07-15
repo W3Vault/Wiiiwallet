@@ -26,6 +26,8 @@ const namespaceStrings = {
   ownerAddress: 'Control address',
   confirmTitle: 'Confirm namespace transaction',
   confirmFee: (fee: number) => `Network fee: ${(fee / 100_000_000).toFixed(8)} WIII`,
+  successTitle: 'Success',
+  networkError: 'Unable to connect to the configured Electrum server.',
   broadcastSuccess: 'Namespace transaction broadcast successfully.',
   createSuccess: (namespaceId?: string) =>
     namespaceId ? `Namespace transaction broadcast. New namespace ID: ${namespaceId}` : 'Namespace transaction broadcast successfully.',
