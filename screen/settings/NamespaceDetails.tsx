@@ -1,4 +1,4 @@
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
@@ -7,28 +7,22 @@ import {
   deleteNamespaceKey,
   fetchNamespaceKeyValues,
   isNamespaceCapableWallet,
-  NamespaceKeyValue,
   NamespaceRpcUnavailableError,
-  NamespaceTransactionResult,
   setNamespaceKey,
   transferNamespace,
   WIII_NAMESPACE_TRANSFER_KEY_PREFIX,
+  type NamespaceKeyValue,
+  type NamespaceTransactionResult,
 } from '../../blue_modules/wiiicoin-namespace';
 import presentAlert from '../../components/Alert';
-import {
-  SettingsListItem,
-  SettingsScrollView,
-  SettingsSection,
-  SettingsSectionHeader,
-  SettingsSubtitle,
-} from '../../components/platform';
+import { SettingsListItem, SettingsScrollView, SettingsSection, SettingsSectionHeader, SettingsSubtitle } from '../../components/platform';
 import { useStorage } from '../../hooks/context/useStorage';
 import { useBiometrics, unlockWithBiometrics } from '../../hooks/useBiometrics';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
 import prompt from '../../helpers/prompt';
 import loc from '../../loc';
 import namespaceStrings from '../../loc/wiiicoinNamespace';
-import { DetailViewStackParamList } from '../../navigation/DetailViewStackParamList';
+import type { DetailViewStackParamList } from '../../navigation/DetailViewStackParamList';
 
 type RouteProps = RouteProp<DetailViewStackParamList, 'NamespaceDetails'>;
 
@@ -175,11 +169,7 @@ const NamespaceDetails: React.FC = () => {
       return;
     }
     if (!destination || !(await confirmAction(namespaceStrings.transferConfirm(destination), true))) return;
-    await broadcastMutation(
-      () => transferNamespace(namespaceWallet, namespaceId, destination),
-      namespaceStrings.transferSuccess,
-      true,
-    );
+    await broadcastMutation(() => transferNamespace(namespaceWallet, namespaceId, destination), namespaceStrings.transferSuccess, true);
   }, [broadcastMutation, namespaceId, namespaceWallet]);
 
   if (!namespaceWallet) {
@@ -211,12 +201,7 @@ const NamespaceDetails: React.FC = () => {
           disabled={isSubmitting || isLoading}
           position="first"
         />
-        <SettingsListItem
-          title={namespaceStrings.deleteKey}
-          onPress={deleteKey}
-          disabled={isSubmitting || isLoading}
-          position="middle"
-        />
+        <SettingsListItem title={namespaceStrings.deleteKey} onPress={deleteKey} disabled={isSubmitting || isLoading} position="middle" />
         <SettingsListItem
           title={namespaceStrings.transfer}
           iconName="paperPlane"
