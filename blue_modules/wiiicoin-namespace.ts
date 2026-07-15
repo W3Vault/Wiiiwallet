@@ -2,14 +2,14 @@ import { Buffer } from 'buffer';
 import * as bitcoin from 'bitcoinjs-lib';
 import b58 from 'bs58check';
 import type { CoinSelectOutput, CoinSelectReturnInput, CoinSelectTarget, CoinSelectUtxo } from 'coinselect';
-import coinSelectAccumulative from 'coinselect/accumulative';
-import { ECPairFactory, ECPairInterface } from 'ecpair';
+import { ECPairFactory, type ECPairInterface } from 'ecpair';
 
 import * as BlueElectrum from './BlueElectrum';
 import ecc from './noble_ecc';
-import { WIIICOIN_ELECTRUM_SERVER, WIIICOIN_NETWORK } from './wiiicoin-network';
 import { uint8ArrayToHex } from './uint8array-extras';
+import { WIIICOIN_ELECTRUM_SERVER, WIIICOIN_NETWORK } from './wiiicoin-network';
 import { AbstractHDElectrumWallet } from '../class/wallets/abstract-hd-electrum-wallet';
+import { HDSegwitP2SHWallet } from '../class/wallets/hd-segwit-p2sh-wallet';
 import type { CreateTransactionTarget, Utxo } from '../class/wallets/types';
 
 const ElectrumClient = require('electrum-client');
@@ -37,11 +37,7 @@ const TRANSACTION_INFO_METHODS = [
   'blockchain.wiiicoin.get_transactions_info',
   'blockchain.namespace.get_transactions_info',
 ];
-const KEY_VALUES_METHODS = [
-  'blockchain.keva.get_keyvalues',
-  'blockchain.wiiicoin.get_keyvalues',
-  'blockchain.namespace.get_keyvalues',
-];
+const KEY_VALUES_METHODS = ['blockchain.keva.get_keyvalues', 'blockchain.wiiicoin.get_keyvalues', 'blockchain.namespace.get_keyvalues'];
 
 type NamespaceElectrumClient = {
   initElectrum(config: { client: string; version: string }, policy?: { maxRetry: number; callback: () => void }): Promise<unknown>;
@@ -50,6 +46,27 @@ type NamespaceElectrumClient = {
   close(): void;
   onError?: (error: { message?: string }) => void;
 };
+
+type NamespaceCoinSelectOutput = CoinSelectOutput & {
+  script?: {
+    length?: number;
+    hex?: string;
+  };
+};
+
+type NamespaceCoinSelectResult = {
+  inputs?: CoinSelectReturnInput[];
+  outputs?: NamespaceCoinSelectOutput[];
+  fee: number;
+};
+
+type AccumulativeCoinSelector = (
+  utxos: CoinSelectUtxo[],
+  targets: CoinSelectTarget[],
+  feeRate: number,
+) => NamespaceCoinSelectResult;
+
+const coinSelectAccumulative = require('coinselect/accumulative') as AccumulativeCoinSelector;
 
 export type NamespaceTransactionInfo = {
   n?: [string, number];
@@ -89,10 +106,7 @@ export type NamespaceTransactionResult = {
   controlVout?: number;
 };
 
-export type NamespaceWallet = AbstractHDElectrumWallet & {
-  segwitType?: string;
-  _getWifForAddress(address: string): string;
-};
+export type NamespaceWallet = HDSegwitP2SHWallet;
 
 export class NamespaceRpcUnavailableError extends Error {
   constructor() {
@@ -226,14 +240,7 @@ export function getRootNamespaceScriptHash(namespaceId: string): string {
 }
 
 export function isNamespaceCapableWallet(wallet: unknown): wallet is NamespaceWallet {
-  const candidate = wallet as NamespaceWallet | undefined;
-  return (
-    !!candidate &&
-    candidate instanceof AbstractHDElectrumWallet &&
-    candidate.segwitType === 'p2sh(p2wpkh)' &&
-    !!candidate.getSecret() &&
-    candidate.allowSend()
-  );
+  return wallet instanceof HDSegwitP2SHWallet && !!wallet.getSecret() && wallet.allowSend();
 }
 
 async function connectNamespaceElectrum(): Promise<NamespaceElectrumClient> {
@@ -292,7 +299,11 @@ async function getTransactionInfo(
   return Object.fromEntries(uniqueTxids.map((txid, index) => [txid, response[index] ?? {}]));
 }
 
-function parseNamespaceInfo(namespaceId: string, history: Array<{ tx_hash: string; height: number }>, txs: Record<string, NamespaceTransactionInfo>) {
+function parseNamespaceInfo(
+  namespaceId: string,
+  history: Array<{ tx_hash: string; height: number }>,
+  txs: Record<string, NamespaceTransactionInfo>,
+) {
   for (const item of history.slice().reverse()) {
     const tx = txs[item.tx_hash];
     if (!tx?.n || !tx.kv || tx.kv.op === WIII_OP_DELETE) continue;
@@ -387,7 +398,7 @@ export async function fetchNamespaceKeyValues(namespaceId: string): Promise<Name
   namespaceToPayload(namespaceId);
   return withNamespaceElectrum(async client => {
     const response = await requestWithFallback(client, KEY_VALUES_METHODS, [getNamespaceScriptHash(namespaceId), -1]);
-    const values = Array.isArray(response) ? response : response?.keyvalues ?? [];
+    const values = Array.isArray(response) ? response : (response?.keyvalues ?? []);
     return values.map((item: any) => ({
       key: decodeBase64(item.key),
       value: decodeBase64(item.value),
@@ -403,7 +414,7 @@ function selectNamespaceInputs(
   utxos: Utxo[],
   targets: CreateTransactionTarget[],
   feeRate: number,
-): { inputs: CoinSelectReturnInput[]; outputs: CoinSelectOutput[]; fee: number } {
+): { inputs: CoinSelectReturnInput[]; outputs: NamespaceCoinSelectOutput[]; fee: number } {
   const preparedUtxos = JSON.parse(JSON.stringify(utxos)) as CoinSelectUtxo[];
   const preparedTargets = JSON.parse(JSON.stringify(targets)) as CreateTransactionTarget[];
 
@@ -431,7 +442,12 @@ function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: C
   keyPairs.forEach((keyPair, index) => psbt.signInput(index, keyPair));
 }
 
-function addOutputs(psbt: bitcoin.Psbt, outputs: CoinSelectOutput[], namespaceScript: Uint8Array, changeAddress: string): void {
+function addOutputs(
+  psbt: bitcoin.Psbt,
+  outputs: NamespaceCoinSelectOutput[],
+  namespaceScript: Uint8Array,
+  changeAddress: string,
+): void {
   let namespaceOutputAdded = false;
   for (const output of outputs) {
     if (output.script?.hex && !namespaceOutputAdded) {
@@ -448,7 +464,7 @@ function addOutputs(psbt: bitcoin.Psbt, outputs: CoinSelectOutput[], namespaceSc
 function buildSignedTransaction(
   wallet: NamespaceWallet,
   inputs: CoinSelectReturnInput[],
-  outputs: CoinSelectOutput[],
+  outputs: NamespaceCoinSelectOutput[],
   namespaceScript: Uint8Array,
   changeAddress: string,
 ): Pick<NamespaceTransactionResult, 'tx' | 'controlTxid' | 'controlVout'> {
@@ -537,11 +553,7 @@ export async function setNamespaceKey(
   return buildNamespaceMutation(wallet, namespaceId, ownerAddress => getNamespaceUpdateScript(namespaceId, ownerAddress, key, value));
 }
 
-export async function deleteNamespaceKey(
-  wallet: NamespaceWallet,
-  namespaceId: string,
-  key: string,
-): Promise<NamespaceTransactionResult> {
+export async function deleteNamespaceKey(wallet: NamespaceWallet, namespaceId: string, key: string): Promise<NamespaceTransactionResult> {
   return buildNamespaceMutation(wallet, namespaceId, ownerAddress => getNamespaceDeleteScript(namespaceId, ownerAddress, key));
 }
 
