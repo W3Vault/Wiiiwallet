@@ -6,6 +6,7 @@ import { withLazySuspense } from './LazyLoadingIndicator';
 import { DetailViewStackParamList } from './DetailViewStackParamList';
 import { useStorage } from '../hooks/context/useStorage';
 import loc from '../loc';
+import namespaceStrings from '../loc/wiiicoinNamespace';
 import navigationStyle, { CloseButtonPosition, withRouteParamHeaderOptions } from '../components/navigationStyle';
 import { useTheme } from '../components/themes';
 import WalletXpub from '../screen/wallets/xpub';
@@ -25,6 +26,8 @@ const ExportMultisigCoordinationSetupStack = lazy(() => import('./ExportMultisig
 const SignVerifyStackRoot = lazy(() => import('./SignVerifyStack'));
 const ScanQRCode = lazy(() => import('../screen/send/ScanQRCode'));
 const ViewEditMultisigCosigners = lazy(() => import('../screen/wallets/ViewEditMultisigCosigners'));
+const NamespaceManager = lazy(() => import('../screen/settings/NamespaceManager'));
+const NamespaceDetails = lazy(() => import('../screen/settings/NamespaceDetails'));
 
 export const NavigationDefaultOptions: NativeStackNavigationOptions = {
   headerShown: false,
@@ -58,6 +61,8 @@ const LazyExportMultisigCoordinationSetupStack = withLazySuspense(ExportMultisig
 const LazyViewEditMultisigCosigners = withLazySuspense(ViewEditMultisigCosigners);
 const LazySignVerifyStackRoot = withLazySuspense(SignVerifyStackRoot);
 const LazyScanQRCodeComponent = withLazySuspense(ScanQRCode);
+const LazyNamespaceManager = withLazySuspense(NamespaceManager);
+const LazyNamespaceDetails = withLazySuspense(NamespaceDetails);
 const multisigSheetAllowedDetents = Platform.OS === 'ios' ? 'fitToContents' : [0.9];
 
 const MainRoot = () => {
@@ -154,6 +159,31 @@ const MainRoot = () => {
               headerShown: true,
               closeButtonPosition: CloseButtonPosition.Right,
             })(theme)}
+          />
+          <DetailViewStack.Screen
+            name="NamespaceManager"
+            component={LazyNamespaceManager}
+            options={navigationStyle({
+              title: namespaceStrings.title,
+              presentation: 'modal',
+              headerShown: true,
+              closeButtonPosition: CloseButtonPosition.Right,
+            })(theme)}
+          />
+          <DetailViewStack.Screen
+            name="NamespaceDetails"
+            component={LazyNamespaceDetails}
+            options={navigationStyle(
+              {
+                title: namespaceStrings.detailsTitle,
+                presentation: 'card',
+                headerShown: true,
+              },
+              (options, { route }) => ({
+                ...options,
+                title: route.params.displayName || namespaceStrings.detailsTitle,
+              }),
+            )(theme)}
           />
           <DetailViewStack.Screen
             name="SignVerifyRoot"
