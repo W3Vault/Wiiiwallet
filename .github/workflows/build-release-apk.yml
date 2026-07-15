@@ -84,7 +84,15 @@ jobs:
 
       - name: Build and sign APK
         id: build_and_sign_apk
-        run: bundle exec fastlane android build_release_apk
+        shell: bash
+        run: |
+          if [ -n "${KEYSTORE_FILE_HEX}" ] && [ -n "${KEYSTORE_PASSWORD}" ]; then
+            echo "Using repository release signing credentials."
+            bundle exec fastlane android build_release_apk
+          else
+            echo "Release signing credentials unavailable; generating a temporary test keystore."
+            bundle exec fastlane android build_release_apk auto_credentials:true
+          fi
         env:
           BUILD_NUMBER: ${{ steps.build_number.outputs.build_number }}
           KEYSTORE_FILE_HEX: ${{ secrets.KEYSTORE_FILE_HEX }}
@@ -116,7 +124,7 @@ jobs:
           else
             EXPECTED_FILENAME="BlueWallet-${VERSION_NAME}-${BUILD_NUMBER}.apk"
           fi
-      
+
           APK_PATH="android/app/build/outputs/apk/release/${EXPECTED_FILENAME}"
           echo "EXPECTED_FILENAME=${EXPECTED_FILENAME}" >> $GITHUB_ENV
           echo "APK_PATH=${APK_PATH}" >> $GITHUB_ENV
