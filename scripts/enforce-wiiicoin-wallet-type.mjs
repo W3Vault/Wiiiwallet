@@ -30,15 +30,19 @@ let walletHeaderSource = fs.readFileSync(walletHeaderPath, 'utf8');
 const inheritedUnitDisplay =
   "{unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit}";
 const wiiicoinUnitDisplay =
-  "{unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit === BitcoinUnit.BTC ? 'Wiii' : unit}";
+  "{unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.GBP) : unit === BitcoinUnit.BTC ? 'Wiii' : unit}";
 
 if (walletHeaderSource.includes(inheritedUnitDisplay)) {
   walletHeaderSource = walletHeaderSource.replace(inheritedUnitDisplay, wiiicoinUnitDisplay);
-  fs.writeFileSync(walletHeaderPath, walletHeaderSource);
 }
+walletHeaderSource = walletHeaderSource.replace(
+  "{unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit === BitcoinUnit.BTC ? 'Wiii' : unit}",
+  wiiicoinUnitDisplay,
+);
+fs.writeFileSync(walletHeaderPath, walletHeaderSource);
 
 if (!fs.readFileSync(walletHeaderPath, 'utf8').includes(wiiicoinUnitDisplay)) {
-  throw new Error('Opened-wallet balance unit was not changed from BTC to Wiii');
+  throw new Error('Opened-wallet balance unit was not changed from BTC to Wiii with GBP as the fiat default');
 }
 
 // Replace the inherited BlueWallet image embedded in receive QR codes with the
@@ -96,8 +100,8 @@ if (!verifiedQrCode.includes('testID="qr-wiiicoin-logo"') || verifiedQrCode.incl
   throw new Error('Receive QR code still contains the inherited BlueWallet centre icon');
 }
 
-// Use a transparent-corner vector so launchers display a round purple badge,
-// with the supplied Wiiicoin mark rendered in white inside the circle.
+// Use a transparent-corner vector so Android launchers display a round purple
+// badge with the supplied Wiiicoin mark rendered in white inside the circle.
 const appIconPath = 'android/app/src/main/res/drawable/wiiicoin_app_icon.xml';
 const roundAppIcon = `<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -106,12 +110,10 @@ const roundAppIcon = `<?xml version="1.0" encoding="utf-8"?>
     android:viewportWidth="237.2"
     android:viewportHeight="237.2">
 
-    <!-- Circular Wiiicoin badge; the area outside the circle is transparent. -->
     <path
         android:fillColor="#A654A0"
         android:pathData="M118.6,6.6A112,112 0,1 1,118.6,230.6A112,112 0,1 1,118.6,6.6Z" />
 
-    <!-- Supplied Wiiicoin / wiii mark, reversed to white inside the badge. -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M93.1,192.9H58.9C51.7,192.9 45.8,187 45.8,179.8V57.4C45.8,50.2 51.7,44.3 58.9,44.3H64.3C71.5,44.3 77.4,50.2 77.4,57.4V178.8C78.2,186.8 85,193 93.1,193Z" />
@@ -130,7 +132,97 @@ if (!verifiedIcon.includes('M118.6,6.6A112,112') || !verifiedIcon.includes('andr
   throw new Error('Round Wiiicoin launcher icon was not generated correctly');
 }
 
+// Use GBP as Wiiiwallet's fiat denomination and a fixed launch valuation of
+// one WIII = £10. Internal BTC naming remains because upstream formatting APIs
+// represent a whole coin as 100,000,000 base units.
+const currencyPath = 'blue_modules/currency.ts';
+let currencySource = fs.readFileSync(currencyPath, 'utf8');
+currencySource = currencySource.replace(
+  'let preferredFiatCurrency: FiatUnitType = FiatUnit.USD;',
+  'let preferredFiatCurrency: FiatUnitType = FiatUnit.GBP;',
+);
+currencySource = currencySource.replace(
+  'let exchangeRates: ExchangeRates = { LAST_UPDATED_ERROR: false };',
+  "const WIIICOIN_GBP_RATE = 10;\nlet exchangeRates: ExchangeRates = { LAST_UPDATED_ERROR: false, BTC_GBP: WIIICOIN_GBP_RATE, LAST_UPDATED: Date.now() };",
+);
+currencySource = currencySource.replace(
+  'async function setPreferredCurrency(item: FiatUnitType): Promise<void> {\n  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);',
+  'async function setPreferredCurrency(item: FiatUnitType): Promise<void> {\n  item = FiatUnit.GBP;\n  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);',
+);
+currencySource = currencySource.replace(
+  '    const rate = await getFiatRate(preferredFiatCurrency.endPointKey);',
+  '    preferredFiatCurrency = FiatUnit.GBP;\n    const rate = WIIICOIN_GBP_RATE;',
+);
+currencySource = currencySource.replace(
+  /async function getPreferredCurrency\(\): Promise<FiatUnitType> \{[\s\S]*?\n\}\n\nasync function _restoreSavedExchangeRatesFromStorage/,
+  `async function getPreferredCurrency(): Promise<FiatUnitType> {
+  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+  preferredFiatCurrency = FiatUnit.GBP;
+  await DefaultPreference.set(PREFERRED_CURRENCY_STORAGE_KEY, FiatUnit.GBP.endPointKey);
+  await DefaultPreference.set(PREFERRED_CURRENCY_LOCALE_STORAGE_KEY, FiatUnit.GBP.locale.replace('-', '_'));
+  return preferredFiatCurrency;
+}
+
+async function _restoreSavedExchangeRatesFromStorage`,
+);
+currencySource = currencySource.replace(
+  /async function _restoreSavedPreferredFiatCurrencyFromStorage\(\): Promise<void> \{[\s\S]*?\n\}\n\nasync function isRateOutdated/,
+  `async function _restoreSavedPreferredFiatCurrencyFromStorage(): Promise<void> {
+  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+  preferredFiatCurrency = FiatUnit.GBP;
+  currencyFormatter = null;
+  await DefaultPreference.set(PREFERRED_CURRENCY_STORAGE_KEY, FiatUnit.GBP.endPointKey);
+  await DefaultPreference.set(PREFERRED_CURRENCY_LOCALE_STORAGE_KEY, FiatUnit.GBP.locale.replace('-', '_'));
+  exchangeRates[BTC_PREFIX + FiatUnit.GBP.endPointKey] = WIIICOIN_GBP_RATE;
+  exchangeRates[LAST_UPDATED] = Date.now();
+  exchangeRates.LAST_UPDATED_ERROR = false;
+}
+
+async function isRateOutdated`,
+);
+fs.writeFileSync(currencyPath, currencySource);
+
+const verifiedCurrency = fs.readFileSync(currencyPath, 'utf8');
+if (
+  !verifiedCurrency.includes('let preferredFiatCurrency: FiatUnitType = FiatUnit.GBP;') ||
+  !verifiedCurrency.includes('const WIIICOIN_GBP_RATE = 10;') ||
+  !verifiedCurrency.includes('const rate = WIIICOIN_GBP_RATE;')
+) {
+  throw new Error('Wiiicoin GBP valuation was not applied');
+}
+
+// Apply visible iOS Wiiiwallet branding while preserving inherited internal
+// bundle identifiers and document identifiers for build compatibility.
+const iosInfoPath = 'ios/BlueWallet/Info.plist';
+let iosInfo = fs.readFileSync(iosInfoPath, 'utf8');
+iosInfo = iosInfo
+  .replace('<string>BlueWallet</string>', '<string>Wiiiwallet</string>')
+  .replaceAll('<string>BW COSIGNER</string>', '<string>Wiiiwallet Cosigner</string>')
+  .replace('Quickly view the current Bitcoin market rate.', 'Quickly view the current Wiiicoin value.')
+  .replace('<string>Bitcoin Price</string>', '<string>Wiiicoin Value</string>')
+  .replace('<string>Partially Signed Bitcoin Transaction</string>', '<string>Partially Signed Wiiicoin Transaction</string>')
+  .replace('<string>Bitcoin Transaction</string>', '<string>Wiiicoin Transaction</string>');
+
+if (!iosInfo.includes('<string>wiiicoin</string>')) {
+  iosInfo = iosInfo.replace(
+    '<array>\n\t\t\t\t<string>bitcoin</string>',
+    '<array>\n\t\t\t\t<string>wiiicoin</string>\n\t\t\t\t<string>wiiiwallet</string>\n\t\t\t\t<string>bitcoin</string>',
+  );
+}
+fs.writeFileSync(iosInfoPath, iosInfo);
+
+const verifiedIosInfo = fs.readFileSync(iosInfoPath, 'utf8');
+if (
+  !verifiedIosInfo.includes('<string>Wiiiwallet</string>') ||
+  !verifiedIosInfo.includes('<string>wiiicoin</string>') ||
+  !verifiedIosInfo.includes('<string>Wiiicoin Value</string>')
+) {
+  throw new Error('Visible Wiiiwallet iOS branding was not applied');
+}
+
 console.log('Wiiicoin BIP49 P2SH is the only on-chain wallet type exposed by Add Wallet.');
 console.log('Opened-wallet balance unit displays Wiii.');
 console.log('Receive QR codes use the round Wiiicoin app icon.');
 console.log('Android launcher icon uses a round purple Wiiicoin badge with a white mark.');
+console.log('Wiiicoin fiat valuation is fixed at 1 WIII = £10 GBP.');
+console.log('Visible iOS branding is Wiiiwallet / Wiiicoin.');
