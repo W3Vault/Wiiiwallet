@@ -66,6 +66,9 @@ requireText(namespacePath, 'export const WIII_OP_DELETE = 0xd2;', 'namespace del
 requireText(namespacePath, 'export const WIII_NAMESPACE_TX_VERSION = 0x7100;', 'namespace transaction version');
 requireText(namespacePath, 'export const WIII_NAMESPACE_FEE_RATE = 2_000;', 'namespace data-transaction fee floor');
 requireText(namespacePath, 'Math.max(WIII_NAMESPACE_FEE_RATE', 'namespace fee estimate floor');
+requireText(namespacePath, 'export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;', 'namespace final input sequence');
+requireText(namespacePath, 'input, WIII_NAMESPACE_SEQUENCE,', 'namespace sequence applied to every input');
+forbidText(namespacePath, 'input, AbstractHDElectrumWallet.defaultRBFSequence,', 'namespace RBF input sequence');
 requireText(namespacePath, "Buffer.from('\\x01_WIII_NS_', 'utf8')", 'WIII namespace root marker');
 requireText(namespacePath, "'blockchain.wiii.get_transactions_info'", 'WIII namespace transaction RPC');
 requireText(namespacePath, "'blockchain.wiii.get_keyvalues'", 'WIII namespace key/value RPC');
@@ -79,7 +82,9 @@ requireOrder(
 );
 
 requireFile('blue_modules/wiiicoin-namespace-error.ts');
+requireFile('tests/unit/wiiicoin-namespace-error.test.ts');
 requireText('blue_modules/wiiicoin-namespace-error.ts', "json !== '{}'", 'structured namespace RPC error formatting');
+requireText('blue_modules/wiiicoin-namespace-error.ts', "[0-9a-f]{128,}", 'raw transaction rejection redaction');
 
 for (const path of [
   'screen/settings/NamespaceManager.tsx',
