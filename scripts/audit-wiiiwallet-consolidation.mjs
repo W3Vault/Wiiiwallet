@@ -48,6 +48,8 @@ requireText('class/wiiicoin-wallet-restore.ts', 'new HDSegwitP2SHWallet()', 'BIP
 requireText('screen/wallets/ImportWalletDiscovery.tsx', 'createWiiicoinWalletFromMnemonic(importText, passphrase)', 'deterministic mnemonic restore');
 requireText('screen/wallets/ImportWalletDiscovery.tsx', 'isValidWiiicoinMnemonic(importText)', 'Wiiicoin mnemonic validation');
 forbidText('screen/wallets/ImportWalletDiscovery.tsx', 'new HDSegwitBech32Wallet()', 'BIP84 mnemonic restore fallback');
+requireText('screen/wallets/ImportSpeed.tsx', 'createWiiicoinWalletFromMnemonic(importText, passphrase || undefined)', 'speed mnemonic restore');
+forbidText('screen/wallets/ImportSpeed.tsx', 'HDSegwitBech32Wallet', 'speed BIP84 restore route');
 requireText('screen/wallets/ImportCustomDerivationPath.tsx', 'WIIICOIN_DERIVATION_PATHS.wrappedSegwit', 'Wiiicoin BIP49 custom derivation default');
 requireText('screen/wallets/ImportCustomDerivationPath.tsx', 'HDSegwitP2SHWallet.type', 'Wiiicoin P2SH custom restore type');
 
