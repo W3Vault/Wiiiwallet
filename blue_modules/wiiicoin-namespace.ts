@@ -8,7 +8,6 @@ import * as BlueElectrum from './BlueElectrum';
 import ecc from './noble_ecc';
 import { uint8ArrayToHex } from './uint8array-extras';
 import { WIIICOIN_ELECTRUM_SERVER, WIIICOIN_NETWORK } from './wiiicoin-network';
-import { AbstractHDElectrumWallet } from '../class/wallets/abstract-hd-electrum-wallet';
 import { HDSegwitP2SHWallet } from '../class/wallets/hd-segwit-p2sh-wallet';
 import type { CreateTransactionTarget, Utxo } from '../class/wallets/types';
 
@@ -25,6 +24,9 @@ export const WIII_NAMESPACE_VALUE = 1_000_000;
 // The original Wiiicoin wallet uses 2,000 satoshis per byte for namespace/data transactions.
 // Ordinary payment fee estimates are not sufficient for the chain's data-transaction policy.
 export const WIII_NAMESPACE_FEE_RATE = 2_000;
+// Namespace transactions in the original Wiiicoin wallet use a final input sequence.
+// Do not inherit the payment wallet's RBF sequence because the chain rejects that wire format.
+export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;
 export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
 
 const DUMMY_TXID = 'c70483b4613b18e750d0b1087ada28d713ad1e406ebc87d36f94063512c5f0dd';
@@ -435,7 +437,7 @@ function addAndSignInputs(wallet: NamespaceWallet, psbt: bitcoin.Psbt, inputs: C
     const address = String(input.address ?? '');
     if (!address) throw new Error('Unable to derive the signing key for a namespace input.');
     const wif = wallet._getWifForAddress(address);
-    wallet._addPsbtInput(psbt, input, AbstractHDElectrumWallet.defaultRBFSequence, new Uint8Array([0, 0, 0, 0]));
+    wallet._addPsbtInput(psbt, input, WIII_NAMESPACE_SEQUENCE, new Uint8Array([0, 0, 0, 0]));
     keyPairs.push(ECPair.fromWIF(wif, WIIICOIN_NETWORK));
   });
   keyPairs.forEach((keyPair, index) => psbt.signInput(index, keyPair));

@@ -5,9 +5,15 @@ type RpcErrorLike = {
   data?: unknown;
 };
 
+function sanitizeMessage(value: string): string {
+  const withoutRawTransaction = value.replace(/\n\s*\[[0-9a-f]{128,}\]\s*$/i, '').trim();
+  if (withoutRawTransaction.length <= 500) return withoutRawTransaction;
+  return `${withoutRawTransaction.slice(0, 497)}...`;
+}
+
 function stringifyValue(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.trim()) return value.trim();
-  if (value instanceof Error && value.message.trim()) return value.message.trim();
+  if (typeof value === 'string' && value.trim()) return sanitizeMessage(value);
+  if (value instanceof Error && value.message.trim()) return sanitizeMessage(value.message);
   if (value && typeof value === 'object') {
     const candidate = value as RpcErrorLike;
     const nested = candidate.message ?? candidate.error ?? candidate.data;
@@ -17,7 +23,7 @@ function stringifyValue(value: unknown): string | undefined {
     }
     try {
       const json = JSON.stringify(value);
-      if (json && json !== '{}') return json;
+      if (json && json !== '{}') return sanitizeMessage(json);
     } catch {}
   }
   return undefined;
