@@ -8,6 +8,7 @@ import {
   getNamespaceUpdateScript,
   namespaceToPayload,
   payloadToNamespace,
+  WIII_NAMESPACE_FEE_RATE,
   WIII_OP_DELETE,
   WIII_OP_NAMESPACE,
   WIII_OP_PUT,
@@ -20,6 +21,10 @@ const NAMESPACE_PAYLOAD = '359cb5d1022c53411522ebe7f5b179772d0f1f54fd';
 const OWNER_ADDRESS = 'sJFRHbqe5txzZ9VP88MGD6fkmjwRoEY8hK';
 
 describe('Wiiicoin namespace protocol', () => {
+  it('uses the legacy Wiiicoin data-transaction fee floor', () => {
+    expect(WIII_NAMESPACE_FEE_RATE).toBe(2_000);
+  });
+
   it('derives the legacy-compatible namespace identifier from the first input', () => {
     expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
     expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);

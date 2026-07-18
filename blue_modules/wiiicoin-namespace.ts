@@ -22,6 +22,9 @@ export const WIII_OP_PUT = 0xd1;
 export const WIII_OP_DELETE = 0xd2;
 export const WIII_NAMESPACE_TX_VERSION = 0x7100;
 export const WIII_NAMESPACE_VALUE = 1_000_000;
+// The original Wiiicoin wallet uses 2,000 satoshis per byte for namespace/data transactions.
+// Ordinary payment fee estimates are not sufficient for the chain's data-transaction policy.
+export const WIII_NAMESPACE_FEE_RATE = 2_000;
 export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
 
 const DUMMY_TXID = 'c70483b4613b18e750d0b1087ada28d713ad1e406ebc87d36f94063512c5f0dd';
@@ -473,9 +476,10 @@ function buildSignedTransaction(
 
 async function estimateNamespaceFeeRate(): Promise<number> {
   try {
-    return Math.max(1, await BlueElectrum.estimateFee(6));
+    const estimatedFeeRate = await BlueElectrum.estimateFee(6);
+    return Math.max(WIII_NAMESPACE_FEE_RATE, Number.isFinite(estimatedFeeRate) ? estimatedFeeRate : 0);
   } catch {
-    return 1;
+    return WIII_NAMESPACE_FEE_RATE;
   }
 }
 

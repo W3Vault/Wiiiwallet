@@ -51,3 +51,7 @@ Standard Electrum calls continue to use the application's configured server. Nam
 ## User interface
 
 Namespace management is available under **Settings → Tools → Namespaces**. Transaction creation is followed by a fee confirmation and, when enabled, biometric authentication before broadcast.
+## Data-transaction fee
+
+Namespace create, update, delete and transfer transactions use a minimum fee rate of **2,000 satoshis per byte**, matching the original Wiiicoin wallet and node data-transaction policy. Ordinary payment fee estimates must not reduce this floor.
+

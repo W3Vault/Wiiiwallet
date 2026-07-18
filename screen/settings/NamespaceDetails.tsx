@@ -2,6 +2,7 @@ import { useRoute, type RouteProp } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { formatNamespaceError } from '../../blue_modules/wiiicoin-namespace-error';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import {
   deleteNamespaceKey,
@@ -49,7 +50,7 @@ const confirmAction = (message: string, destructive = false): Promise<boolean> =
 const namespaceErrorMessage = (error: unknown): string => {
   if (error instanceof NamespaceRpcUnavailableError) return namespaceStrings.rpcUnavailable;
   if (error instanceof Error) return error.message;
-  return String(error);
+  return formatNamespaceError(error);
 };
 
 const NamespaceDetails: React.FC = () => {
