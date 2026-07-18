@@ -1,0 +1,74 @@
+name: Apply namespace signing-order fix
+
+on:
+  push:
+    branches:
+      - agent/fix-namespace-signing-order
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Correct namespace PSBT construction order
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          namespace_path = Path('blue_modules/wiiicoin-namespace.ts')
+          source = namespace_path.read_text()
+          old = '''  addAndSignInputs(wallet, psbt, inputs);
+            addOutputs(psbt, outputs, namespaceScript, changeAddress);'''.replace('    addOutputs', '  addOutputs')
+          new = '''  addOutputs(psbt, outputs, namespaceScript, changeAddress);
+            addAndSignInputs(wallet, psbt, inputs);'''.replace('    addAndSignInputs', '  addAndSignInputs')
+          if source.count(old) != 1:
+              raise SystemExit(f'Expected one namespace signing-order block, found {source.count(old)}')
+          namespace_path.write_text(source.replace(old, new, 1))
+
+          audit_path = Path('scripts/audit-wiiiwallet-consolidation.mjs')
+          audit = audit_path.read_text()
+          helper_anchor = '''const forbidText = (path, value, label = value) => {
+            const content = read(path);
+            if (content.includes(value)) throw new Error(`${path}: still contains ${label}`);
+          };
+          '''.replace('    const content', '  const content').replace('    if (content', '  if (content').replace('  };', '};')
+          helper = helper_anchor + '''const requireOrder = (path, before, after, label) => {
+            const content = read(path);
+            const beforeIndex = content.indexOf(before);
+            const afterIndex = content.indexOf(after);
+            if (beforeIndex < 0 || afterIndex < 0 || beforeIndex >= afterIndex) throw new Error(`${path}: invalid order for ${label}`);
+          };
+          '''.replace('    const content', '  const content').replace('    const beforeIndex', '  const beforeIndex').replace('    const afterIndex', '  const afterIndex').replace('    if (beforeIndex', '  if (beforeIndex').replace('  };', '};')
+          if 'const requireOrder = ' not in audit:
+              if audit.count(helper_anchor) != 1:
+                  raise SystemExit('Unable to locate audit helper insertion point')
+              audit = audit.replace(helper_anchor, helper, 1)
+
+          check_anchor = "forbidText(namespacePath, '_KEVA_NS_', 'legacy KEVA root marker');\n"
+          check = check_anchor + "requireOrder(\n  namespacePath,\n  'addOutputs(psbt, outputs, namespaceScript, changeAddress);',\n  'addAndSignInputs(wallet, psbt, inputs);',\n  'namespace outputs before input signatures',\n);\n"
+          if "'namespace outputs before input signatures'" not in audit:
+              if audit.count(check_anchor) != 1:
+                  raise SystemExit('Unable to locate namespace audit insertion point')
+              audit = audit.replace(check_anchor, check, 1)
+          audit_path.write_text(audit)
+          PY
+
+          rm .github/workflows/apply-namespace-signing-order-fix.yml
+          git diff --check
+
+      - name: Commit corrected source
+        shell: bash
+        run: |
+          git config user.name "Wiiiwallet CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add blue_modules/wiiicoin-namespace.ts scripts/audit-wiiiwallet-consolidation.mjs .github/workflows/apply-namespace-signing-order-fix.yml
+          git commit -m "Fix namespace transaction signing order"
+          git push origin HEAD:agent/fix-namespace-signing-order
