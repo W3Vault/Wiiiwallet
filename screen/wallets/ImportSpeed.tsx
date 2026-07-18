@@ -4,7 +4,8 @@ import { ActivityIndicator, StyleSheet, TextInput, View } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueFormMultiInput from '../../components/BlueFormMultiInput';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
+import { createWiiicoinWalletFromMnemonic } from '../../class/wiiicoin-wallet-restore';
+import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import presentAlert from '../../components/Alert';
 import Button from '../../components/Button';
@@ -21,7 +22,7 @@ const ImportSpeed = () => {
   const { colors } = useTheme();
   const [loading, setLoading] = useState<boolean>(false);
   const [importText, setImportText] = useState<string>('');
-  const [walletType, setWalletType] = useState<string>('');
+  const [walletType, setWalletType] = useState<string>(HDSegwitP2SHWallet.type);
   const [passphrase, setPassphrase] = useState<string>('');
   const { addAndSaveWallet } = useStorage();
 
@@ -55,26 +56,17 @@ const ImportSpeed = () => {
   const importMnemonic = async () => {
     setLoading(true);
     try {
-      let WalletClass;
-      switch (walletType) {
-        case HDSegwitBech32Wallet.type:
-          WalletClass = HDSegwitBech32Wallet;
-          break;
-        case WatchOnlyWallet.type:
-          WalletClass = WatchOnlyWallet;
-          break;
-      }
-
-      if (!WalletClass) {
+      let wallet;
+      if (!walletType || walletType === HDSegwitP2SHWallet.type) {
+        wallet = createWiiicoinWalletFromMnemonic(importText, passphrase || undefined);
+      } else if (walletType === WatchOnlyWallet.type) {
+        wallet = new WatchOnlyWallet();
+        wallet.setSecret(importText);
+        wallet.init();
+      } else {
         throw new Error('Invalid wallet type');
       }
 
-      const wallet = new WalletClass();
-      wallet.setSecret(importText);
-      // check wallet is type of HDSegwitBech32Wallet
-      if (passphrase && wallet instanceof HDSegwitBech32Wallet) {
-        wallet.setPassphrase(passphrase);
-      }
       await wallet.fetchBalance();
       navigation.getParent()?.goBack();
       addAndSaveWallet(wallet);
