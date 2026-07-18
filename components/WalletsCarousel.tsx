@@ -34,6 +34,7 @@ import { withAlpha } from './color';
 import { useTheme } from './themes';
 import { Transaction, TWallet } from '../class/wallets/types';
 import { BlueSpacing10 } from './BlueSpacing';
+import WiiicoinLogo from './WiiicoinLogo';
 import { useLocale } from '@react-navigation/native';
 
 export const WALLET_CAROUSEL_HEADER_WIDTH = 16;
@@ -425,7 +426,7 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
         image = direction === 'rtl' ? require('../img/vault-shape-rtl.png') : require('../img/vault-shape.png');
         break;
       default:
-        image = direction === 'rtl' ? require('../img/btc-shape-rtl.png') : require('../img/btc-shape.png');
+        image = undefined;
     }
 
     let latestTransactionText;
@@ -482,7 +483,18 @@ export const WalletCarouselItem: React.FC<WalletCarouselItemProps> = React.memo(
               colors={WalletGradient.gradientsFor(item.type)}
               style={[iStyles.grad, isCompact && iStyles.gradCompact, scaledCardStyles.grad]}
             >
-              <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />
+              {image ? (
+                <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />
+              ) : (
+                <WiiicoinLogo
+                  testID="wiiicoin-wallet-watermark"
+                  width={isCompact ? 78 : 99}
+                  height={isCompact ? 74 : 94}
+                  style={[iStyles.image, isCompact && iStyles.imageCompact]}
+                  color="#FFFFFF"
+                  opacity={0.28}
+                />
+              )}
               <View style={[iStyles.gradContent, isCompact && iStyles.gradContentCompact, !isCompact && scaledCardStyles.gradContent]}>
                 {!isPlaceHolder && (
                   <>
