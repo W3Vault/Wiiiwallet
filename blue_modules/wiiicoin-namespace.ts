@@ -33,11 +33,11 @@ const MAX_NAMESPACE_KEY_BYTES = 255;
 const MAX_NAMESPACE_VALUE_BYTES = 3072;
 
 const TRANSACTION_INFO_METHODS = [
-  'blockchain.keva.get_transactions_info',
+  'blockchain.wiii.get_transactions_info',
   'blockchain.wiiicoin.get_transactions_info',
   'blockchain.namespace.get_transactions_info',
 ];
-const KEY_VALUES_METHODS = ['blockchain.keva.get_keyvalues', 'blockchain.wiiicoin.get_keyvalues', 'blockchain.namespace.get_keyvalues'];
+const KEY_VALUES_METHODS = ['blockchain.wiii.get_keyvalues', 'blockchain.wiiicoin.get_keyvalues', 'blockchain.namespace.get_keyvalues'];
 
 type NamespaceElectrumClient = {
   initElectrum(config: { client: string; version: string }, policy?: { maxRetry: number; callback: () => void }): Promise<unknown>;

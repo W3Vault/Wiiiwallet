@@ -41,8 +41,8 @@ A namespace ID is derived from the first selected funding input using:
 
 The configured Wiiicoin ElectrumX server must provide the namespace RPC methods used by the original wallet:
 
-- `blockchain.keva.get_transactions_info`
-- `blockchain.keva.get_keyvalues`
+- `blockchain.wiii.get_transactions_info`
+- `blockchain.wiii.get_keyvalues`
 
 For forward compatibility, the client also tries equivalent `blockchain.wiiicoin.*` and `blockchain.namespace.*` method names when the legacy method name is unavailable.
 
