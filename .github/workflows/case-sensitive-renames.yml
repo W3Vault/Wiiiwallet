@@ -1,0 +1,78 @@
+name: One-time case-sensitive terminology replacement
+
+on:
+  push:
+    branches:
+      - agent/rename-keva-to-wiii
+
+permissions:
+  contents: write
+
+jobs:
+  replace-terms:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace lowercase terms in tracked UTF-8 files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          workflow = Path('.github/workflows/case-sensitive-renames.yml')
+          old_prefix = ''.join(chr(value) for value in (107, 101, 118, 97))
+          old_coin = old_prefix + 'coin'
+          replacements = ((old_coin, 'wiiicoin'), (old_prefix, 'wiii'))
+
+          tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode('utf-8').split('\0')
+          changed_files = []
+          total_replacements = 0
+
+          for name in tracked:
+              if not name:
+                  continue
+              path = Path(name)
+              if path == workflow or not path.is_file():
+                  continue
+              data = path.read_bytes()
+              try:
+                  text = data.decode('utf-8')
+              except UnicodeDecodeError:
+                  continue
+
+              updated = text
+              file_replacements = 0
+              for old, new in replacements:
+                  count = updated.count(old)
+                  if count:
+                      updated = updated.replace(old, new)
+                      file_replacements += count
+
+              if updated != text:
+                  path.write_text(updated, encoding='utf-8', newline='')
+                  changed_files.append(name)
+                  total_replacements += file_replacements
+
+          print(f'Changed {len(changed_files)} files with {total_replacements} replacements')
+          for name in changed_files:
+              print(name)
+
+          if total_replacements == 0:
+              raise SystemExit('No matching lowercase terms were found')
+          PY
+
+      - name: Remove one-time workflow and commit replacements
+        shell: bash
+        run: |
+          rm .github/workflows/case-sensitive-renames.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace lowercase namespace terminology with Wiiicoin terms"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
