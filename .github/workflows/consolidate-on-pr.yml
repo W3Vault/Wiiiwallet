@@ -1,0 +1,32 @@
+name: Consolidate Wiiiwallet source on PR
+
+on:
+  pull_request:
+    branches:
+      - master
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Consolidate and validate source
+        run: bash scripts/consolidate-master-regressions.sh
+
+      - name: Commit consolidated source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Consolidate Wiiiwallet changes and guard regressions"
+          git push origin HEAD:${{ github.head_ref }}
