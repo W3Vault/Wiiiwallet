@@ -4,7 +4,6 @@ import {
   Animated,
   Dimensions,
   Easing,
-  Image,
   Keyboard,
   Platform,
   StyleSheet,
@@ -19,6 +18,7 @@ import { BiometricType, unlockWithBiometrics, useBiometrics } from '../hooks/use
 import loc from '../loc';
 import { useStorage } from '../hooks/context/useStorage';
 import { PasswordInput, PasswordInputHandle } from '../components/PasswordInput';
+import WiiicoinLogo from '../components/WiiicoinLogo';
 
 enum AuthType {
   Encrypted,
@@ -83,6 +83,7 @@ const UnlockWith: React.FC = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const isUnlockingWallets = useRef(false);
   const keyboardOffset = useRef(new Animated.Value(0)).current;
+  const logoRotation = useRef(new Animated.Value(0)).current;
   const passwordInputRef = useRef<PasswordInputHandle>(null);
   const passwordResolveRef = useRef<((password: string | undefined) => void) | null>(null);
   const { setWalletsInitialized, isStorageEncrypted, startAndDecrypt } = useStorage();
@@ -91,6 +92,26 @@ const UnlockWith: React.FC = () => {
   useEffect(() => {
     setWalletsInitialized(false);
   }, [setWalletsInitialized]);
+
+  useEffect(() => {
+    if (!state.isAuthenticating) {
+      logoRotation.stopAnimation();
+      logoRotation.setValue(0);
+      return;
+    }
+
+    logoRotation.setValue(0);
+    const logoAnimation = Animated.loop(
+      Animated.timing(logoRotation, {
+        toValue: 1,
+        duration: 1200,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    logoAnimation.start();
+    return () => logoAnimation.stop();
+  }, [state.isAuthenticating, logoRotation]);
 
   useEffect(() => {
     const windowHeight = Dimensions.get('window').height;
@@ -288,7 +309,24 @@ const UnlockWith: React.FC = () => {
         <View style={styles.keyboardAvoidingView}>
           <Animated.View style={[styles.contentContainer, { transform: [{ translateY: keyboardOffset }] }]}>
             <View style={styles.logoContainer}>
-              <Image source={require('../img/icon.png')} style={styles.logoImage} resizeMode="contain" />
+              <Animated.View
+                testID="rotating-wiiicoin-logo"
+                style={[
+                  styles.logoImage,
+                  {
+                    transform: [
+                      {
+                        rotate: logoRotation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '360deg'],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <WiiicoinLogo width={100} height={75} color="#A654A0" />
+              </Animated.View>
             </View>
             <View style={styles.biometricRow}>{renderUnlockOptions()}</View>
           </Animated.View>

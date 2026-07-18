@@ -12,7 +12,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>BlueWallet</string>
+	<string>Wiiiwallet</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -76,7 +76,7 @@
 			<key>CFBundleTypeIconFiles</key>
 			<array/>
 			<key>CFBundleTypeName</key>
-			<string>BW COSIGNER</string>
+			<string>Wiiiwallet Cosigner</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
@@ -108,6 +108,8 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>wiiicoin</string>
+				<string>wiiiwallet</string>
 				<string>bitcoin</string>
 				<string>lightning</string>
 				<string>bluewallet</string>
@@ -144,9 +146,9 @@
 			<key>INIntentClassName</key>
 			<string>PriceView</string>
 			<key>IntentDescription</key>
-			<string>Quickly view the current Bitcoin market rate.</string>
+			<string>Quickly view the current Wiiicoin value.</string>
 			<key>IntentName</key>
-			<string>Bitcoin Price</string>
+			<string>Wiiicoin Value</string>
 		</dict>
 	</array>
 	<key>NSAppTransportSecurity</key>
@@ -253,7 +255,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Partially Signed Bitcoin Transaction</string>
+			<string>Partially Signed Wiiicoin Transaction</string>
 			<key>UTTypeIdentifier</key>
 			<string>io.bluewallet.psbt</string>
 			<key>UTTypeTagSpecification</key>
@@ -266,7 +268,7 @@
 		</dict>
 		<dict>
 			<key>UTTypeDescription</key>
-			<string>BW COSIGNER</string>
+			<string>Wiiiwallet Cosigner</string>
 			<key>UTTypeIdentifier</key>
 			<string>io.bluewallet.bwcosigner</string>
 			<key>UTTypeTagSpecification</key>
@@ -283,7 +285,7 @@
 				<string>public.data</string>
 			</array>
 			<key>UTTypeDescription</key>
-			<string>Bitcoin Transaction</string>
+			<string>Wiiicoin Transaction</string>
 			<key>UTTypeIdentifier</key>
 			<string>io.bluewallet.psbt.txn</string>
 			<key>UTTypeTagSpecification</key>

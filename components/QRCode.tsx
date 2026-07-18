@@ -3,7 +3,7 @@ import { encodeQR } from 'qr';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { Platform, StyleSheet, View, ViewStyle } from 'react-native';
 import Share from 'react-native-share';
-import Svg, { Defs, Image as SvgImage, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, G, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
 import loc from '../loc';
 import { ActionIcons } from '../typings/ActionIcons';
@@ -81,7 +81,7 @@ const getCachedMatrix = (value: string, ecl: ErrorCorrectionLevel): boolean[][] 
 type RenderPlan = {
   N: number;
   cell: number;
-  dataPath: string;
+  dataPaths: string[];
   finderOrigins: Array<[number, number]>;
   logoCells: number;
   logoStart: number;
@@ -123,17 +123,19 @@ const getCachedPlan = (value: string, ecl: ErrorCorrectionLevel, size: number, i
   const isInsideFinder = (r: number, c: number): boolean =>
     finderOrigins.some(([fr, fc]) => r >= fr && r < fr + 7 && c >= fc && c < fc + 7);
 
-  let dataPath = '';
+  const dataPaths: string[] = [];
   for (let r = 0; r < N; r++) {
+    let rowPath = '';
     for (let c = 0; c < N; c++) {
       if (!matrix[r][c]) continue;
       if (isLogoRendered && r >= logoStart && r < logoEnd && c >= logoStart && c < logoEnd) continue;
       if (isInsideFinder(r, c)) continue;
-      dataPath += `M${c * cell} ${r * cell}h${cell}v${cell}h-${cell}z`;
+      rowPath += `M${c * cell} ${r * cell}h${cell}v${cell}h-${cell}z`;
     }
+    if (rowPath) dataPaths.push(rowPath);
   }
 
-  const plan: RenderPlan = { N, cell, dataPath, finderOrigins, logoCells, logoStart };
+  const plan: RenderPlan = { N, cell, dataPaths, finderOrigins, logoCells, logoStart };
   planCache.set(key, plan);
   if (planCache.size > PLAN_CACHE_MAX) {
     const first = planCache.keys().next().value;
@@ -212,7 +214,7 @@ const QRCode: React.FC<QRCodeProps> = ({
 
   const renderQR = useMemo(() => {
     if (!plan) return null;
-    const { cell, dataPath, finderOrigins, logoCells, logoStart } = plan;
+    const { cell, dataPaths, finderOrigins, logoCells, logoStart } = plan;
     const gradFill = `url(#${GRADIENT_ID})`;
 
     const finderShapes: React.ReactElement[] = [];
@@ -248,7 +250,14 @@ const QRCode: React.FC<QRCodeProps> = ({
     const logoCenter = size / 2;
 
     return (
-      <Svg ref={svgRef} testID="BitcoinAddressQRCode" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <Svg
+        key={`${ecl}|${size}|${logoSize}|${isLogoRendered ? 1 : 0}|${value}`}
+        ref={svgRef}
+        testID="BitcoinAddressQRCode"
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+      >
         <Defs>
           <LinearGradient id={GRADIENT_ID} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={size} y2={size}>
             <Stop offset="0" stopColor={GRADIENT_STOP_1} />
@@ -256,25 +265,27 @@ const QRCode: React.FC<QRCodeProps> = ({
           </LinearGradient>
         </Defs>
         <Rect testID="qr-background" x={0} y={0} width={size} height={size} fill={BACKGROUND} />
-        {dataPath ? <Path testID="qr-cells-path" d={dataPath} fill={gradFill} /> : null}
+        {dataPaths.map((rowPath, rowIndex) => (
+          <Path key={`qr-row-${rowIndex}`} testID="qr-cells-path" d={rowPath} fill={gradFill} />
+        ))}
         {finderShapes}
         {isLogoRendered && logoCells > 0 && (
           <>
             <Rect testID="qr-logo-backdrop" x={backdropX} y={backdropY} width={backdropSize} height={backdropSize} fill={LOGO_BACKGROUND} />
-            <SvgImage
-              testID="qr-logo-image"
-              href={require('../img/qr-code.png')}
-              x={logoCenter - logoSize / 2}
-              y={logoCenter - logoSize / 2}
-              width={logoSize}
-              height={logoSize}
-              preserveAspectRatio="xMidYMid meet"
-            />
+            <G
+              testID="qr-wiiicoin-logo"
+              transform={`translate(${logoCenter - logoSize / 2} ${logoCenter - logoSize / 2}) scale(${logoSize / 237.2})`}
+            >
+              <Rect x={6.6} y={6.6} width={224} height={224} rx={112} fill="#A654A0" />
+              <Path fill="#FFFFFF" d="M93.1 192.9H58.9C51.7 192.9 45.8 187 45.8 179.8V57.4C45.8 50.2 51.7 44.3 58.9 44.3H64.3C71.5 44.3 77.4 50.2 77.4 57.4V178.8C78.2 186.8 85 193 93.1 193Z" />
+              <Path fill="#FFFFFF" d="M191.5 60.1V177.1C191.5 185.8 184.4 192.9 175.7 192.9H144.3C152.6 192.9 159.2 186.5 159.9 178.4V60.1C159.9 55.7 161.7 51.8 164.5 48.9C167.4 46 171.3 44.3 175.7 44.3C184.4 44.3 191.5 51.4 191.5 60.1Z" />
+              <Path fill="#FFFFFF" d="M118.6 44.3C127.3 44.3 134.4 51.4 134.4 60.1V177.1C134.4 185.8 127.3 192.9 118.6 192.9C109.9 192.9 102.8 185.8 102.8 177.1V60.1C102.8 51.4 109.9 44.3 118.6 44.3Z" />
+            </G>
           </>
         )}
       </Svg>
     );
-  }, [plan, size, isLogoRendered, logoSize]);
+  }, [plan, size, isLogoRendered, logoSize, value, ecl]);
 
   const content = renderQR ?? <View testID="qr-placeholder" style={stylesHook.placeholder} />;
 

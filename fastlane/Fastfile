@@ -73,7 +73,7 @@ module AndroidHelpers
   end
 
   def apk_name(version_name, build_number, branch)
-    branch != 'master' ? "BlueWallet-#{version_name}-#{build_number}-#{branch}.apk" : "BlueWallet-#{version_name}-#{build_number}.apk"
+    branch != 'master' ? "Wiiiwallet-#{version_name}-#{build_number}-#{branch}.apk" : "Wiiiwallet-#{version_name}-#{build_number}.apk"
   end
 
   def apksigner_path

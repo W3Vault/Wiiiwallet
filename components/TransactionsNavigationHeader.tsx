@@ -213,7 +213,7 @@ const TransactionsNavigationHeader: React.FC<TransactionsNavigationHeaderProps> 
             {!hideBalance && (
               <TouchableOpacity style={styles.walletPreferredUnitView} onPress={changeWalletBalanceUnit} disabled={unitSwitching}>
                 <Text style={styles.walletPreferredUnitText}>
-                  {unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.USD) : unit}
+                  {unit === BitcoinUnit.LOCAL_CURRENCY ? (preferredFiatCurrency?.endPointKey ?? FiatUnit.GBP) : unit === BitcoinUnit.BTC ? 'Wiii' : unit}
                 </Text>
               </TouchableOpacity>
             )}

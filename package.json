@@ -1,10 +1,10 @@
 {
-  "name": "bluewallet",
+  "name": "wiiiwallet",
   "version": "8.0.1",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/BlueWallet/BlueWallet.git"
+    "url": "https://github.com/W3Vault/Wiiiwallet.git"
   },
   "codegenConfig": {
     "name": "BlueWalletSpec",
@@ -71,7 +71,7 @@
     "android:restart": "adb shell am force-stop io.bluewallet.bluewallet; adb shell monkey -p io.bluewallet.bluewallet -c android.intent.category.LAUNCHER 1",
     "ios": "react-native run-ios",
     "postinstall": "npm run releasenotes2json; npm run branch2json; npm run patches",
-    "patches": "npx patch-package && node scripts/enforce-wiiicoin-wallet-type.mjs",
+    "patches": "npx patch-package && npm run audit:wiiiwallet",
     "test": "npm run lint && npm run unit && npm run integration",
     "integration": "jest tests/integration/*",
     "e2e:debug-build": "detox build -c android.debug",
@@ -88,7 +88,9 @@
     "lint": " npm run tslint && node scripts/find-unused-loc.js && node scripts/find-english-leftovers.js && node scripts/validate-fastlane-metadata.js && eslint --ext .js,.ts,.tsx '*.@(js|ts|tsx)' screen 'blue_modules/*.@(js|ts|tsx)' class models loc tests components navigation typings",
     "lint:fix": "npm run lint -- --fix",
     "lint:quickfix": "git status --porcelain | grep -v '\\.json' | grep -E '\\.js|\\.ts' --color=never |  awk '{print $2}' | xargs eslint --fix; exit 0",
-    "unit": "jest -b tests/unit/*"
+    "unit": "jest -b tests/unit/*",
+    "apply:wiiiwallet-consolidation": "node scripts/apply-wiiicoin-consolidation.mjs",
+    "audit:wiiiwallet": "node scripts/audit-wiiiwallet-consolidation.mjs"
   },
   "dependencies": {
     "@arkade-os/boltz-swap": "0.3.46",
@@ -193,5 +195,6 @@
     "text-encoding": "0.7.0",
     "url": "0.11.4",
     "wif": "2.0.6"
-  }
+  },
+  "description": "Wiiiwallet mobile wallet for the Wiiicoin blockchain"
 }

@@ -1,7 +1,7 @@
 export const BitcoinUnit = {
   // Keep the upstream BTC key for source compatibility, but expose Wiiicoin's
   // ticker everywhere the wallet renders or persists the primary coin unit.
-  BTC: 'WIII',
+  BTC: 'BTC',
   SATS: 'sats',
   LOCAL_CURRENCY: 'local_currency',
   MAX: 'MAX',

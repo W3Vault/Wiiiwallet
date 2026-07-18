@@ -21,8 +21,9 @@ interface ExchangeRates {
   LAST_UPDATED_ERROR: boolean;
 }
 
-let preferredFiatCurrency: FiatUnitType = FiatUnit.USD;
-let exchangeRates: ExchangeRates = { LAST_UPDATED_ERROR: false };
+let preferredFiatCurrency: FiatUnitType = FiatUnit.GBP;
+const WIIICOIN_GBP_RATE = 10;
+let exchangeRates: ExchangeRates = { LAST_UPDATED_ERROR: false, BTC_GBP: WIIICOIN_GBP_RATE, LAST_UPDATED: Date.now() };
 let lastTimeUpdateExchangeRateWasCalled: number = 0;
 let skipUpdateExchangeRate: boolean = false;
 
@@ -46,6 +47,7 @@ function getCurrencyFormatter(): Intl.NumberFormat {
 }
 
 async function setPreferredCurrency(item: FiatUnitType): Promise<void> {
+  item = FiatUnit.GBP;
   await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
   try {
     await DefaultPreference.set(PREFERRED_CURRENCY_STORAGE_KEY, item.endPointKey);
@@ -78,7 +80,8 @@ async function updateExchangeRate(): Promise<void> {
   console.log('updating exchange rate...');
 
   try {
-    const rate = await getFiatRate(preferredFiatCurrency.endPointKey);
+    preferredFiatCurrency = FiatUnit.GBP;
+    const rate = WIIICOIN_GBP_RATE;
     exchangeRates[LAST_UPDATED] = Date.now();
     exchangeRates[BTC_PREFIX + preferredFiatCurrency.endPointKey] = rate;
     exchangeRates.LAST_UPDATED_ERROR = false;
@@ -124,34 +127,9 @@ async function updateExchangeRate(): Promise<void> {
 
 async function getPreferredCurrency(): Promise<FiatUnitType> {
   await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
-  const preferredCurrencyValue = await DefaultPreference.get(PREFERRED_CURRENCY_STORAGE_KEY);
-  let preferredCurrency: string | null = null;
-
-  if (typeof preferredCurrencyValue === 'string') {
-    preferredCurrency = preferredCurrencyValue;
-  }
-
-  if (preferredCurrency) {
-    try {
-      if (!FiatUnit[preferredCurrency]) {
-        throw new Error('Invalid Fiat Unit');
-      }
-      preferredFiatCurrency = FiatUnit[preferredCurrency];
-    } catch (error) {
-      await DefaultPreference.clear(PREFERRED_CURRENCY_STORAGE_KEY);
-    }
-  }
-
-  if (!preferredFiatCurrency) {
-    const deviceCurrencies = RNLocalize.getCurrencies();
-    if (deviceCurrencies[0] && FiatUnit[deviceCurrencies[0]]) {
-      preferredFiatCurrency = FiatUnit[deviceCurrencies[0]];
-    } else {
-      preferredFiatCurrency = FiatUnit.USD;
-    }
-  }
-
-  await DefaultPreference.set(PREFERRED_CURRENCY_LOCALE_STORAGE_KEY, preferredFiatCurrency.locale.replace('-', '_'));
+  preferredFiatCurrency = FiatUnit.GBP;
+  await DefaultPreference.set(PREFERRED_CURRENCY_STORAGE_KEY, FiatUnit.GBP.endPointKey);
+  await DefaultPreference.set(PREFERRED_CURRENCY_LOCALE_STORAGE_KEY, FiatUnit.GBP.locale.replace('-', '_'));
   return preferredFiatCurrency;
 }
 
@@ -187,40 +165,14 @@ async function _restoreSavedExchangeRatesFromStorage(): Promise<void> {
 }
 
 async function _restoreSavedPreferredFiatCurrencyFromStorage(): Promise<void> {
-  try {
-    await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
-    const storedCurrencyValue = await DefaultPreference.get(PREFERRED_CURRENCY_STORAGE_KEY);
-    let storedCurrency: string | null = null;
-
-    if (typeof storedCurrencyValue === 'string') {
-      storedCurrency = storedCurrencyValue;
-    }
-
-    if (!storedCurrency) throw new Error('No Preferred Fiat selected');
-
-    try {
-      if (!FiatUnit[storedCurrency]) {
-        throw new Error('Invalid Fiat Unit');
-      }
-      preferredFiatCurrency = FiatUnit[storedCurrency];
-    } catch (error) {
-      await DefaultPreference.clear(PREFERRED_CURRENCY_STORAGE_KEY);
-
-      const deviceCurrencies = RNLocalize.getCurrencies();
-      if (deviceCurrencies[0] && FiatUnit[deviceCurrencies[0]]) {
-        preferredFiatCurrency = FiatUnit[deviceCurrencies[0]];
-      } else {
-        preferredFiatCurrency = FiatUnit.USD;
-      }
-    }
-  } catch (error) {
-    const deviceCurrencies = RNLocalize.getCurrencies();
-    if (deviceCurrencies[0] && FiatUnit[deviceCurrencies[0]]) {
-      preferredFiatCurrency = FiatUnit[deviceCurrencies[0]];
-    } else {
-      preferredFiatCurrency = FiatUnit.USD;
-    }
-  }
+  await DefaultPreference.setName(GROUP_IO_BLUEWALLET);
+  preferredFiatCurrency = FiatUnit.GBP;
+  currencyFormatter = null;
+  await DefaultPreference.set(PREFERRED_CURRENCY_STORAGE_KEY, FiatUnit.GBP.endPointKey);
+  await DefaultPreference.set(PREFERRED_CURRENCY_LOCALE_STORAGE_KEY, FiatUnit.GBP.locale.replace('-', '_'));
+  exchangeRates[BTC_PREFIX + FiatUnit.GBP.endPointKey] = WIIICOIN_GBP_RATE;
+  exchangeRates[LAST_UPDATED] = Date.now();
+  exchangeRates.LAST_UPDATED_ERROR = false;
 }
 
 async function isRateOutdated(): Promise<boolean> {
