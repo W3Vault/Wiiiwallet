@@ -39,10 +39,6 @@ fastfile = fastfile.replace(
     'branch != \'master\' ? "Wiiiwallet-#{version_name}-#{build_number}-#{branch}.apk" : "Wiiiwallet-#{version_name}-#{build_number}.apk"',
 )
 fastfile_path.write_text(fastfile)
-
-release_workflow_path = Path('.github/workflows/build-release-apk.yml')
-release_workflow = release_workflow_path.read_text().replace('EXPECTED_FILENAME="BlueWallet-', 'EXPECTED_FILENAME="Wiiiwallet-')
-release_workflow_path.write_text(release_workflow)
 PY
 
 cat > scripts/audit-wiiiwallet-consolidation.mjs <<'EOF'
@@ -115,7 +111,6 @@ forbidText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.keva.', 'legacy namespace 
 
 requireText('fastlane/Fastfile', '"Wiiiwallet-#{version_name}-#{build_number}', 'Wiiiwallet APK filename');
 forbidText('fastlane/Fastfile', '"BlueWallet-#{version_name}-#{build_number}', 'BlueWallet APK filename');
-requireText('.github/workflows/build-release-apk.yml', 'EXPECTED_FILENAME="Wiiiwallet-', 'Wiiiwallet release artifact filename');
 requireText('.github/workflows/build-release-apk.yml', 'build_release_apk', 'release APK lane');
 
 console.log('Wiiiwallet consolidation audit passed.');
@@ -130,7 +125,5 @@ EOF
 node scripts/audit-wiiiwallet-consolidation.mjs
 git diff --check
 
-rm -f .github/workflows/consolidate-master-regressions.yml
-rm -f .github/workflows/consolidate-on-pr.yml
 rm -f .github/consolidation-trigger.md
 rm -f scripts/consolidate-master-regressions.sh
