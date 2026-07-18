@@ -26,18 +26,18 @@ export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
 
 const DUMMY_TXID = 'c70483b4613b18e750d0b1087ada28d713ad1e406ebc87d36f94063512c5f0dd';
 // Retained for wire compatibility with the original namespace protocol.
-const ROOT_NAMESPACE_KEY = Buffer.from('\x01_KEVA_NS_', 'utf8');
-const ROOT_NAMESPACE_KEY_HEX = '015f4b4556415f4e535f';
+const ROOT_NAMESPACE_KEY = Buffer.from('\x01_WIII_NS_', 'utf8');
+const ROOT_NAMESPACE_KEY_HEX = '015f574949495f4e535f';
 const MAX_NAMESPACE_NAME_BYTES = 255;
 const MAX_NAMESPACE_KEY_BYTES = 255;
 const MAX_NAMESPACE_VALUE_BYTES = 3072;
 
 const TRANSACTION_INFO_METHODS = [
-  'blockchain.keva.get_transactions_info',
+  'blockchain.wiii.get_transactions_info',
   'blockchain.wiiicoin.get_transactions_info',
   'blockchain.namespace.get_transactions_info',
 ];
-const KEY_VALUES_METHODS = ['blockchain.keva.get_keyvalues', 'blockchain.wiiicoin.get_keyvalues', 'blockchain.namespace.get_keyvalues'];
+const KEY_VALUES_METHODS = ['blockchain.wiii.get_keyvalues', 'blockchain.wiiicoin.get_keyvalues', 'blockchain.namespace.get_keyvalues'];
 
 type NamespaceElectrumClient = {
   initElectrum(config: { client: string; version: string }, policy?: { maxRetry: number; callback: () => void }): Promise<unknown>;
