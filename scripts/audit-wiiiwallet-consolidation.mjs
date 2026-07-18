@@ -64,6 +64,8 @@ requireText(namespacePath, 'export const WIII_OP_NAMESPACE = 0xd0;', 'namespace 
 requireText(namespacePath, 'export const WIII_OP_PUT = 0xd1;', 'namespace put opcode');
 requireText(namespacePath, 'export const WIII_OP_DELETE = 0xd2;', 'namespace delete opcode');
 requireText(namespacePath, 'export const WIII_NAMESPACE_TX_VERSION = 0x7100;', 'namespace transaction version');
+requireText(namespacePath, 'export const WIII_NAMESPACE_FEE_RATE = 2_000;', 'namespace data-transaction fee floor');
+requireText(namespacePath, 'Math.max(WIII_NAMESPACE_FEE_RATE', 'namespace fee estimate floor');
 requireText(namespacePath, "Buffer.from('\\x01_WIII_NS_', 'utf8')", 'WIII namespace root marker');
 requireText(namespacePath, "'blockchain.wiii.get_transactions_info'", 'WIII namespace transaction RPC');
 requireText(namespacePath, "'blockchain.wiii.get_keyvalues'", 'WIII namespace key/value RPC');
@@ -76,6 +78,9 @@ requireOrder(
   'namespace outputs before input signatures',
 );
 
+requireFile('blue_modules/wiiicoin-namespace-error.ts');
+requireText('blue_modules/wiiicoin-namespace-error.ts', "json !== '{}'", 'structured namespace RPC error formatting');
+
 for (const path of [
   'screen/settings/NamespaceManager.tsx',
   'screen/settings/NamespaceDetails.tsx',
@@ -86,6 +91,8 @@ for (const path of [
 requireText('navigation/index.tsx', 'NamespaceManager', 'namespace manager navigation');
 requireText('navigation/index.tsx', 'NamespaceDetails', 'namespace details navigation');
 requireText('screen/settings/SettingsTools.tsx', 'NamespaceManager', 'Settings → Tools namespace entry');
+requireText('screen/settings/NamespaceManager.tsx', 'formatNamespaceError(error)', 'namespace creation RPC error formatting');
+requireText('screen/settings/NamespaceDetails.tsx', 'formatNamespaceError(error)', 'namespace mutation RPC error formatting');
 requireText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.wiii.', 'WIII namespace documentation');
 forbidText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.keva.', 'legacy namespace documentation');
 
