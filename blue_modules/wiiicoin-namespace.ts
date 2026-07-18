@@ -8,7 +8,6 @@ import * as BlueElectrum from './BlueElectrum';
 import ecc from './noble_ecc';
 import { uint8ArrayToHex } from './uint8array-extras';
 import { WIIICOIN_ELECTRUM_SERVER, WIIICOIN_NETWORK } from './wiiicoin-network';
-import { AbstractHDElectrumWallet } from '../class/wallets/abstract-hd-electrum-wallet';
 import { HDSegwitP2SHWallet } from '../class/wallets/hd-segwit-p2sh-wallet';
 import type { CreateTransactionTarget, Utxo } from '../class/wallets/types';
 
