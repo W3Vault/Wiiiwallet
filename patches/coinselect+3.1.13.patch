@@ -1,0 +1,16 @@
+diff --git a/node_modules/coinselect/utils.js b/node_modules/coinselect/utils.js
+index 2aca8e1..b7f59f2 100644
+--- a/node_modules/coinselect/utils.js
++++ b/node_modules/coinselect/utils.js
+@@ -12,7 +12,10 @@ function inputBytes (input) {
+ }
+ 
+ function outputBytes (output) {
+-  return TX_OUTPUT_BASE + (output.script ? output.script.length : TX_OUTPUT_PUBKEYHASH)
++  // Wiiicoin namespace callers supply custom script lengths without the four
++  // transaction bytes that must remain in the fee estimate. Preserve the
++  // historic coinselect contract while preventing data transactions being underfunded.
++  return TX_OUTPUT_BASE + (output.script ? output.script.length + 4 : TX_OUTPUT_PUBKEYHASH)
+ }
+ 
+ function dustThreshold (output, feeRate) {
