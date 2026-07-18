@@ -1,0 +1,38 @@
+name: Restore unrelated Finnish translation
+
+on:
+  push:
+    branches:
+      - agent/rename-keva-to-wiii
+
+permissions:
+  contents: write
+
+jobs:
+  restore-and-remove:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore translation and remove workflow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('loc/fi_fi.json')
+          text = path.read_text(encoding='utf-8')
+          old = 'Laswiii'
+          new = 'Laskeva'
+          if old not in text:
+              raise SystemExit('Expected temporary translation value not found')
+          path.write_text(text.replace(old, new), encoding='utf-8', newline='')
+          PY
+          rm .github/workflows/restore-finnish-translation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Restore unrelated Finnish translation"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
