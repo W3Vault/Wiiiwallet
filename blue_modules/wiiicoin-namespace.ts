@@ -461,8 +461,8 @@ function buildSignedTransaction(
 ): Pick<NamespaceTransactionResult, 'tx' | 'controlTxid' | 'controlVout'> {
   const psbt = new bitcoin.Psbt({ network: WIIICOIN_NETWORK });
   psbt.setVersion(WIII_NAMESPACE_TX_VERSION);
-  addAndSignInputs(wallet, psbt, inputs);
   addOutputs(psbt, outputs, namespaceScript, changeAddress);
+  addAndSignInputs(wallet, psbt, inputs);
   psbt.finalizeAllInputs();
 
   const transaction = psbt.extractTransaction(true);
