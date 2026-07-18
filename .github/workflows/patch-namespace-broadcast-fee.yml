@@ -1,0 +1,109 @@
+name: Patch namespace broadcast fee
+
+on:
+  push:
+    branches:
+      - agent/fix-namespace-broadcast-fee
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/fix-namespace-broadcast-fee
+          fetch-depth: 0
+
+      - name: Apply namespace fee and error fixes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              if old not in text:
+                  raise SystemExit(f"Expected text not found in {path}: {old[:120]!r}")
+              file.write_text(text.replace(old, new, 1))
+
+          namespace_path = 'blue_modules/wiiicoin-namespace.ts'
+          replace(
+              namespace_path,
+              "export const WIII_NAMESPACE_VALUE = 1_000_000;\nexport const WIII_NAMESPACE_TRANSFER_KEY_PREFIX",
+              "export const WIII_NAMESPACE_VALUE = 1_000_000;\n// The original Wiiicoin wallet uses 2,000 satoshis per byte for namespace/data transactions.\n// Ordinary payment fee estimates are not sufficient for the chain's data-transaction policy.\nexport const WIII_NAMESPACE_FEE_RATE = 2_000;\nexport const WIII_NAMESPACE_TRANSFER_KEY_PREFIX",
+          )
+          replace(
+              namespace_path,
+              "async function estimateNamespaceFeeRate(): Promise<number> {\n  try {\n    return Math.max(1, await BlueElectrum.estimateFee(6));\n  } catch {\n    return 1;\n  }\n}",
+              "async function estimateNamespaceFeeRate(): Promise<number> {\n  try {\n    const estimatedFeeRate = await BlueElectrum.estimateFee(6);\n    return Math.max(WIII_NAMESPACE_FEE_RATE, Number.isFinite(estimatedFeeRate) ? estimatedFeeRate : 0);\n  } catch {\n    return WIII_NAMESPACE_FEE_RATE;\n  }\n}",
+          )
+
+          Path('blue_modules/wiiicoin-namespace-error.ts').write_text("""type RpcErrorLike = {\n  code?: unknown;\n  message?: unknown;\n  error?: unknown;\n  data?: unknown;\n};\n\nfunction stringifyValue(value: unknown): string | undefined {\n  if (typeof value === 'string' && value.trim()) return value.trim();\n  if (value instanceof Error && value.message.trim()) return value.message.trim();\n  if (value && typeof value === 'object') {\n    const candidate = value as RpcErrorLike;\n    const nested = candidate.message ?? candidate.error ?? candidate.data;\n    if (nested !== value) {\n      const nestedMessage = stringifyValue(nested);\n      if (nestedMessage) return nestedMessage;\n    }\n    try {\n      const json = JSON.stringify(value);\n      if (json && json !== '{}') return json;\n    } catch {}\n  }\n  return undefined;\n}\n\n/** Converts Electrum JSON-RPC rejections into a readable alert instead of `[object Object]`. */\nexport function formatNamespaceError(error: unknown): string {\n  const message = stringifyValue(error) ?? 'Unknown namespace error.';\n  if (!error || typeof error !== 'object') return message;\n\n  const code = (error as RpcErrorLike).code;\n  if (code === undefined || code === null || String(code).trim() === '') return message;\n  return `${message} (code ${String(code)})`;\n}\n""")
+
+          for screen in ['screen/settings/NamespaceManager.tsx', 'screen/settings/NamespaceDetails.tsx']:
+              replace(
+                  screen,
+                  "import * as BlueElectrum from '../../blue_modules/BlueElectrum';\n",
+                  "import * as BlueElectrum from '../../blue_modules/BlueElectrum';\nimport { formatNamespaceError } from '../../blue_modules/wiiicoin-namespace-error';\n",
+              )
+              replace(screen, "  return String(error);\n};", "  return formatNamespaceError(error);\n};")
+
+          test_path = 'tests/unit/wiiicoin-namespace.test.ts'
+          replace(
+              test_path,
+              "  WIII_OP_DELETE,\n  WIII_OP_NAMESPACE,\n  WIII_OP_PUT,",
+              "  WIII_NAMESPACE_FEE_RATE,\n  WIII_OP_DELETE,\n  WIII_OP_NAMESPACE,\n  WIII_OP_PUT,",
+          )
+          replace(
+              test_path,
+              "describe('Wiiicoin namespace protocol', () => {\n",
+              "describe('Wiiicoin namespace protocol', () => {\n  it('uses the legacy Wiiicoin data-transaction fee floor', () => {\n    expect(WIII_NAMESPACE_FEE_RATE).toBe(2_000);\n  });\n\n",
+          )
+
+          audit_path = 'scripts/audit-wiiiwallet-consolidation.mjs'
+          replace(
+              audit_path,
+              "requireText(namespacePath, 'export const WIII_NAMESPACE_TX_VERSION = 0x7100;', 'namespace transaction version');\n",
+              "requireText(namespacePath, 'export const WIII_NAMESPACE_TX_VERSION = 0x7100;', 'namespace transaction version');\nrequireText(namespacePath, 'export const WIII_NAMESPACE_FEE_RATE = 2_000;', 'namespace data-transaction fee floor');\nrequireText(namespacePath, 'Math.max(WIII_NAMESPACE_FEE_RATE', 'namespace fee estimate floor');\n",
+          )
+          replace(
+              audit_path,
+              "for (const path of [\n  'screen/settings/NamespaceManager.tsx',",
+              "requireFile('blue_modules/wiiicoin-namespace-error.ts');\nrequireText('blue_modules/wiiicoin-namespace-error.ts', \"json !== '{}'\", 'structured namespace RPC error formatting');\n\nfor (const path of [\n  'screen/settings/NamespaceManager.tsx',",
+          )
+          replace(
+              audit_path,
+              "requireText('screen/settings/SettingsTools.tsx', 'NamespaceManager', 'Settings → Tools namespace entry');\n",
+              "requireText('screen/settings/SettingsTools.tsx', 'NamespaceManager', 'Settings → Tools namespace entry');\nrequireText('screen/settings/NamespaceManager.tsx', 'formatNamespaceError(error)', 'namespace creation RPC error formatting');\nrequireText('screen/settings/NamespaceDetails.tsx', 'formatNamespaceError(error)', 'namespace mutation RPC error formatting');\n",
+          )
+
+          docs_path = 'docs/WIIICOIN_NAMESPACES.md'
+          docs = Path(docs_path).read_text()
+          note = "\n## Data-transaction fee\n\nNamespace create, update, delete and transfer transactions use a minimum fee rate of **2,000 satoshis per byte**, matching the original Wiiicoin wallet and node data-transaction policy. Ordinary payment fee estimates must not reduce this floor.\n"
+          if '## Data-transaction fee' not in docs:
+              Path(docs_path).write_text(docs.rstrip() + note + '\n')
+
+          Path('.github/workflows/patch-namespace-broadcast-fee.yml').unlink()
+          PY
+
+      - name: Commit patched source
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add blue_modules/wiiicoin-namespace.ts \
+                  blue_modules/wiiicoin-namespace-error.ts \
+                  screen/settings/NamespaceManager.tsx \
+                  screen/settings/NamespaceDetails.tsx \
+                  tests/unit/wiiicoin-namespace.test.ts \
+                  scripts/audit-wiiiwallet-consolidation.mjs \
+                  docs/WIIICOIN_NAMESPACES.md \
+                  .github/workflows/patch-namespace-broadcast-fee.yml
+          git commit -m "Fix namespace broadcast fee and RPC errors"
+          git push origin HEAD:agent/fix-namespace-broadcast-fee
