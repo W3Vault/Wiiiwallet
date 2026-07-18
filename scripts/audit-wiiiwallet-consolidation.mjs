@@ -19,7 +19,8 @@ if (pkg.description !== 'Wiiiwallet mobile wallet for the Wiiicoin blockchain') 
 if (pkg.repository?.url !== 'https://github.com/W3Vault/Wiiiwallet.git') throw new Error('package.json: repository still points away from W3Vault/Wiiiwallet');
 if (pkg.scripts?.patches !== 'npx patch-package && npm run audit:wiiiwallet') throw new Error('package.json: postinstall must validate consolidated source rather than mutate it');
 
-requireText('blue_modules/wiiicoin-network.ts', "bech32: 'w3i'", 'Wiiicoin bech32 prefix');
+requireText('blue_modules/wiiicoin-network.ts', "WIIICOIN_BECH32_HRP = 'w3i'", 'Wiiicoin bech32 prefix');
+requireText('blue_modules/wiiicoin-network.ts', 'bech32: WIIICOIN_BECH32_HRP', 'Wiiicoin bech32 network assignment');
 requireText('blue_modules/wiiicoin-network.ts', "host: 'etx1.wiiicoin.io'", 'Wiiicoin ElectrumX host');
 requireText('components/TransactionsNavigationHeader.tsx', "unit === BitcoinUnit.BTC ? 'Wiii' : unit", 'Wiii wallet unit');
 requireText('components/TransactionsNavigationHeader.tsx', 'FiatUnit.GBP', 'GBP wallet header fallback');
@@ -67,6 +68,7 @@ forbidText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.keva.', 'legacy namespace 
 
 requireText('fastlane/Fastfile', '"Wiiiwallet-#{version_name}-#{build_number}', 'Wiiiwallet APK filename');
 forbidText('fastlane/Fastfile', '"BlueWallet-#{version_name}-#{build_number}', 'BlueWallet APK filename');
+requireText('.github/workflows/build-release-apk.yml', 'EXPECTED_FILENAME="Wiiiwallet-', 'Wiiiwallet release artifact filename');
 requireText('.github/workflows/build-release-apk.yml', 'build_release_apk', 'release APK lane');
 
 console.log('Wiiiwallet consolidation audit passed.');
