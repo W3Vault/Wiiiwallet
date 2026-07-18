@@ -9,6 +9,12 @@ const forbidText = (path, value, label = value) => {
   const content = read(path);
   if (content.includes(value)) throw new Error(`${path}: still contains ${label}`);
 };
+const requireOrder = (path, before, after, label) => {
+  const content = read(path);
+  const beforeIndex = content.indexOf(before);
+  const afterIndex = content.indexOf(after);
+  if (beforeIndex < 0 || afterIndex < 0 || beforeIndex >= afterIndex) throw new Error(`${path}: invalid order for ${label}`);
+};
 const requireFile = path => {
   if (!fs.existsSync(path)) throw new Error(`Missing required file: ${path}`);
 };
@@ -63,6 +69,12 @@ requireText(namespacePath, "'blockchain.wiii.get_transactions_info'", 'WIII name
 requireText(namespacePath, "'blockchain.wiii.get_keyvalues'", 'WIII namespace key/value RPC');
 forbidText(namespacePath, 'blockchain.keva.', 'legacy keva RPC prefix');
 forbidText(namespacePath, '_KEVA_NS_', 'legacy KEVA root marker');
+requireOrder(
+  namespacePath,
+  'addOutputs(psbt, outputs, namespaceScript, changeAddress);',
+  'addAndSignInputs(wallet, psbt, inputs);',
+  'namespace outputs before input signatures',
+);
 
 for (const path of [
   'screen/settings/NamespaceManager.tsx',
