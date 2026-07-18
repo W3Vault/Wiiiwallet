@@ -69,68 +69,8 @@ jobs:
           npm run branch2json
           npm run patches
 
-      - name: Apply final Wiiicoin UI fixes
-        shell: bash
-        run: |
-          set -euo pipefail
-          node <<'NODE'
-          const fs = require('fs');
-
-          const replaceOnce = (file, before, after) => {
-            const source = fs.readFileSync(file, 'utf8');
-            if (!source.includes(before)) {
-              throw new Error(`Expected source fragment not found in ${file}: ${before.slice(0, 120)}`);
-            }
-            fs.writeFileSync(file, source.replace(before, after));
-          };
-
-          // Preserve the upstream internal unit identifier so saved wallets and
-          // formatBalance continue to resolve correctly. User-facing localisation
-          // still rewrites the BTC label to WIII in index.js.
-          replaceOnce("models/bitcoinUnits.ts", "  BTC: 'WIII',", "  BTC: 'BTC',");
-
-          // Replace the Bitcoin watermark on standard on-chain wallet cards with
-          // the supplied Wiiicoin vector component.
-          replaceOnce(
-            'components/WalletsCarousel.tsx',
-            "import { BlueSpacing10 } from './BlueSpacing';",
-            "import { BlueSpacing10 } from './BlueSpacing';\nimport WiiicoinLogo from './WiiicoinLogo';",
-          );
-          replaceOnce(
-            'components/WalletsCarousel.tsx',
-            "      default:\n        image = direction === 'rtl' ? require('../img/btc-shape-rtl.png') : require('../img/btc-shape.png');",
-            "      default:\n        image = undefined;",
-          );
-          replaceOnce(
-            'components/WalletsCarousel.tsx',
-            "              <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />",
-            `              {image ? (\n                <ImageBackground source={image} style={[iStyles.image, isCompact && iStyles.imageCompact]} />\n              ) : (\n                <WiiicoinLogo\n                  width={isCompact ? 78 : 99}\n                  height={isCompact ? 74 : 94}\n                  style={[iStyles.image, isCompact && iStyles.imageCompact]}\n                  opacity={0.28}\n                />\n              )}`,
-          );
-
-          // Replace the inherited BlueWallet startup artwork with a Wiiicoin logo
-          // that rotates while wallet storage is opening/decrypting.
-          replaceOnce('screen/UnlockWith.tsx', '  Image,\n', '');
-          replaceOnce(
-            'screen/UnlockWith.tsx',
-            "import { PasswordInput, PasswordInputHandle } from '../components/PasswordInput';",
-            "import { PasswordInput, PasswordInputHandle } from '../components/PasswordInput';\nimport WiiicoinLogo from '../components/WiiicoinLogo';",
-          );
-          replaceOnce(
-            'screen/UnlockWith.tsx',
-            '  const keyboardOffset = useRef(new Animated.Value(0)).current;',
-            '  const keyboardOffset = useRef(new Animated.Value(0)).current;\n  const logoRotation = useRef(new Animated.Value(0)).current;',
-          );
-          replaceOnce(
-            'screen/UnlockWith.tsx',
-            `  useEffect(() => {\n    setWalletsInitialized(false);\n  }, [setWalletsInitialized]);`,
-            `  useEffect(() => {\n    setWalletsInitialized(false);\n  }, [setWalletsInitialized]);\n\n  useEffect(() => {\n    if (!state.isAuthenticating) {\n      logoRotation.stopAnimation();\n      logoRotation.setValue(0);\n      return;\n    }\n\n    logoRotation.setValue(0);\n    const animation = Animated.loop(\n      Animated.timing(logoRotation, {\n        toValue: 1,\n        duration: 1200,\n        easing: Easing.linear,\n        useNativeDriver: true,\n      }),\n    );\n    animation.start();\n    return () => animation.stop();\n  }, [state.isAuthenticating, logoRotation]);`,
-          );
-          replaceOnce(
-            'screen/UnlockWith.tsx',
-            `              <Image source={require('../img/icon.png')} style={styles.logoImage} resizeMode="contain" />`,
-            `              <Animated.View\n                style={[\n                  styles.logoImage,\n                  {\n                    transform: [\n                      {\n                        rotate: logoRotation.interpolate({\n                          inputRange: [0, 1],\n                          outputRange: ['0deg', '360deg'],\n                        }),\n                      },\n                    ],\n                  },\n                ]}\n              >\n                <WiiicoinLogo width={100} height={75} />\n              </Animated.View>`,
-          );
-          NODE
+      - name: Verify tracked Wiiicoin source
+        run: npm run audit:wiiiwallet
 
       - name: Prepare standalone bundle dependencies
         shell: bash
@@ -166,7 +106,7 @@ jobs:
           grep -F "import WiiicoinLogo from './WiiicoinLogo';" components/WalletsCarousel.tsx
           grep -F 'image = undefined;' components/WalletsCarousel.tsx
           grep -F "import WiiicoinLogo from '../components/WiiicoinLogo';" screen/UnlockWith.tsx
-          grep -F 'const animation = Animated.loop(' screen/UnlockWith.tsx
+          grep -F 'const logoAnimation = Animated.loop(' screen/UnlockWith.tsx
           grep -F 'android:windowBackground">@drawable/wiiiwallet_splash' android/app/src/main/res/values/styles.xml
           grep -F 'android:windowSplashScreenAnimatedIcon">@drawable/wiiicoin_logo' android/app/src/main/res/values-v31/styles.xml
           grep -F "host: 'etx1.wiiicoin.io'" blue_modules/wiiicoin-network.ts
@@ -206,7 +146,9 @@ jobs:
           fs.writeFileSync(entryPath, 'module.exports = {};\n');
           NODE
 
-          npx jest tests/unit/wiiicoin-network.test.ts \
+          npx jest \
+            tests/unit/wiiicoin-network.test.ts \
+            tests/unit/wiiicoin-wallet-restore.test.ts \
             --runInBand \
             --no-cache 2>&1 | tee wiiicoin-unit-test.log
 

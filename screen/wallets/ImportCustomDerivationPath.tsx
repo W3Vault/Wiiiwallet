@@ -3,12 +3,10 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import debounce from '../../blue_modules/debounce';
+import { WIIICOIN_DERIVATION_PATHS } from '../../blue_modules/wiiicoin-network';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueTextCentered from '../../components/BlueTextCentered';
-import { HDLegacyP2PKHWallet } from '../../class/wallets/hd-legacy-p2pkh-wallet';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import { HDSegwitP2SHWallet } from '../../class/wallets/hd-segwit-p2sh-wallet';
-import { HDTaprootWallet } from '../../class/wallets/hd-taproot-wallet';
 import { validateBip32 } from '../../class/wallet-import';
 import { TWallet } from '../../class/wallets/types';
 import Button from '../../components/Button';
@@ -45,10 +43,10 @@ const ImportCustomDerivationPath: React.FC = () => {
   const { colors } = useTheme();
   const { importText, password } = useRoute<RouteProps>().params;
   const { addAndSaveWallet } = useStorage();
-  const [path, setPath] = useState<string>("m/84'/0'/0'");
+  const [path, setPath] = useState<string>(WIIICOIN_DERIVATION_PATHS.wrappedSegwit);
   const [wallets, setWallets] = useState<TWalletsByPath>({});
   const [used, setUsed] = useState<TUsedByPath>({});
-  const [selected, setSelected] = useState<string>('');
+  const [selected, setSelected] = useState<string>(HDSegwitP2SHWallet.type);
   const importing = useRef(false);
   const { isElectrumDisabled } = useSettings();
 
@@ -59,40 +57,34 @@ const ImportCustomDerivationPath: React.FC = () => {
         return;
       }
 
-      // create wallets
-      const newWallets: { [type: string]: TWallet } = {};
-      for (const Wallet of [HDLegacyP2PKHWallet, HDSegwitP2SHWallet, HDSegwitBech32Wallet, HDTaprootWallet]) {
-        const wallet = new Wallet();
-        wallet.setSecret(importText);
-        if (password) {
-          wallet.setPassphrase(password);
-        }
-        wallet.setDerivationPath(newPath);
-        newWallets[Wallet.type] = wallet;
+      // Wiiiwallet supports only Wiiicoin BIP49 P2SH-P2WPKH wallets.
+      const wallet = new HDSegwitP2SHWallet();
+      wallet.setSecret(importText);
+      if (password) {
+        wallet.setPassphrase(password);
       }
+      wallet.setDerivationPath(newPath);
+      const newWallets: { [type: string]: TWallet } = {
+        [HDSegwitP2SHWallet.type]: wallet,
+      };
       setWallets(ws => ({ ...ws, [newPath]: newWallets }));
 
       if (isElectrumDisabled) {
-        // do not check if electrum is disabled
-        Object.values(newWallets).forEach(w => {
-          setUsed(u => ({ ...u, [newPath]: { ...u[newPath], [w.type]: STATUS.WALLET_UNKNOWN } }));
-        });
+        setUsed(u => ({
+          ...u,
+          [newPath]: { ...u[newPath], [wallet.type]: STATUS.WALLET_UNKNOWN },
+        }));
         return;
       }
 
-      // discover was they ever used
-      const promises = Object.values(newWallets).map(w => {
-        return w.wasEverUsed().then(v => {
-          const status = v ? STATUS.WALLET_FOUND : STATUS.WALLET_NOTFOUND;
-          setUsed(u => ({ ...u, [newPath]: { ...u[newPath], [w.type]: status } }));
-        });
-      });
       try {
-        await Promise.all(promises);
+        const status = (await wallet.wasEverUsed()) ? STATUS.WALLET_FOUND : STATUS.WALLET_NOTFOUND;
+        setUsed(u => ({ ...u, [newPath]: { ...u[newPath], [wallet.type]: status } }));
       } catch (e) {
-        Object.values(newWallets).forEach(w => {
-          setUsed(u => ({ ...u, [newPath]: { ...u[newPath], [w.type]: STATUS.WALLET_UNKNOWN } }));
-        });
+        setUsed(u => ({
+          ...u,
+          [newPath]: { ...u[newPath], [wallet.type]: STATUS.WALLET_UNKNOWN },
+        }));
       }
     }, 500),
   );
@@ -104,12 +96,7 @@ const ImportCustomDerivationPath: React.FC = () => {
 
   const items: TItem[] = useMemo(() => {
     if (wallets[path] === WRONG_PATH) return [];
-    return [
-      [HDLegacyP2PKHWallet.type, HDLegacyP2PKHWallet.typeReadable, used[path]?.[HDLegacyP2PKHWallet.type]],
-      [HDSegwitP2SHWallet.type, HDSegwitP2SHWallet.typeReadable, used[path]?.[HDSegwitP2SHWallet.type]],
-      [HDSegwitBech32Wallet.type, HDSegwitBech32Wallet.typeReadable, used[path]?.[HDSegwitBech32Wallet.type]],
-      [HDTaprootWallet.type, HDTaprootWallet.typeReadable, used[path]?.[HDTaprootWallet.type]],
-    ];
+    return [[HDSegwitP2SHWallet.type, HDSegwitP2SHWallet.typeReadable, used[path]?.[HDSegwitP2SHWallet.type]]];
   }, [path, used, wallets]);
 
   const stylesHook = StyleSheet.create({
