@@ -97,6 +97,7 @@ jobs:
           BUILD_NUMBER: ${{ steps.build_number.outputs.build_number }}
           KEYSTORE_FILE_HEX: ${{ secrets.KEYSTORE_FILE_HEX }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SKIP_APP_STORE_CONNECT_AUTH: '1'
 
       - name: Upload build logs on failure
         if: failure()
