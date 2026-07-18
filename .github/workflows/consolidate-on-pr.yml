@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   consolidate:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout pull request branch
@@ -21,12 +21,31 @@ jobs:
           fetch-depth: 0
 
       - name: Consolidate and validate source
-        run: bash scripts/consolidate-master-regressions.sh
+        id: consolidate
+        shell: bash
+        run: |
+          set +e
+          bash scripts/consolidate-master-regressions.sh > consolidation-error.log 2>&1
+          status=$?
+          cat consolidation-error.log
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
 
-      - name: Commit consolidated source
+      - name: Commit consolidation result
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ steps.consolidate.outputs.status }}" = "0" ]; then
+            rm -f consolidation-error.log
+            message="Consolidate Wiiiwallet changes and guard regressions"
+          else
+            message="Record Wiiiwallet consolidation failure"
+          fi
           git add -A
-          git commit -m "Consolidate Wiiiwallet changes and guard regressions"
+          git commit -m "$message"
           git push origin HEAD:${{ github.head_ref }}
+
+      - name: Fail when consolidation failed
+        if: steps.consolidate.outputs.status != '0'
+        run: exit 1
