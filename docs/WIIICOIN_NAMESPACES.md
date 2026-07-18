@@ -28,7 +28,7 @@ The implementation retains the original protocol values:
 - Delete opcode: `0xd2`
 - Namespace transaction version: `0x7100`
 - Namespace Base58Check prefix: `0x35`
-- Root namespace marker: `\x01_KEVA_NS_`
+- Root namespace marker: `\x01_WIII_NS_`
 
 A namespace ID is derived from the first selected funding input using:
 
