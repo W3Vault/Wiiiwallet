@@ -1,11 +1,3 @@
-Wiiicoin branding consolidation complete:
-- white Wiiicoin wallet watermark
-- round Wiiicoin receive QR icon
-- complete first-render QR matrix
-- rotating Wiiicoin unlock/loading logo
-- Wiii opened-wallet balance label
-- Wiii Android splash and round Wiiicoin app icon
-- fixed GBP valuation at 1 WIII = £10
 file:///home/runner/work/Wiiiwallet/Wiiiwallet/scripts/audit-wiiiwallet-consolidation.mjs:6
   if (!content.includes(value)) throw new Error(`${path}: missing ${label}`);
                                       ^
