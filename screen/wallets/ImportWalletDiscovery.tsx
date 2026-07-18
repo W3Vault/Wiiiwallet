@@ -5,9 +5,9 @@ import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/h
 import BlueButtonLink from '../../components/BlueButtonLink';
 import BlueFormLabel from '../../components/BlueFormLabel';
 import BlueText from '../../components/BlueText';
-import { HDSegwitBech32Wallet } from '../../class/wallets/hd-segwit-bech32-wallet';
 import { WatchOnlyWallet } from '../../class/wallets/watch-only-wallet';
 import startImport, { TImport } from '../../class/wallet-import';
+import { createWiiicoinWalletFromMnemonic, isValidWiiicoinMnemonic } from '../../class/wiiicoin-wallet-restore';
 import presentAlert from '../../components/Alert';
 import Button from '../../components/Button';
 import SafeArea from '../../components/SafeArea';
@@ -48,11 +48,7 @@ const ImportWalletDiscovery: React.FC = () => {
   const [selected, setSelected] = useState<number>(0);
   const [progress, setProgress] = useState<string | undefined>();
   const importing = useRef<boolean>(false);
-  const bip39 = useMemo(() => {
-    const hd = new HDSegwitBech32Wallet();
-    hd.setSecret(importText);
-    return hd.validateMnemonic();
-  }, [importText]);
+  const bip39 = useMemo(() => isValidWiiicoinMnemonic(importText), [importText]);
 
   const stylesHook = StyleSheet.create({
     root: {
@@ -79,9 +75,13 @@ const ImportWalletDiscovery: React.FC = () => {
   };
 
   useEffect(() => {
-    const onProgress = (data: string) => setProgress(data);
+    let active = true;
+    const onProgress = (data: string) => {
+      if (active) setProgress(data);
+    };
 
     const onWallet = (wallet: TWallet | THDWalletForWatchOnly) => {
+      if (!active) return;
       const id = wallet.getID();
       let subtitle: string | undefined;
 
@@ -107,7 +107,7 @@ const ImportWalletDiscovery: React.FC = () => {
     const onPassword = async (title: string, subtitle: string) => {
       try {
         const pass = await prompt(title, subtitle);
-        setPassword(pass);
+        if (active) setPassword(pass);
         return pass;
       } catch (e: any) {
         if (e.message === 'Cancel Pressed') {
@@ -117,29 +117,56 @@ const ImportWalletDiscovery: React.FC = () => {
       }
     };
 
-    task.current = startImport(importText, askPassphrase, searchAccounts, isElectrumDisabled, onProgress, onWallet, onPassword);
+    const handleImportError = (e: any) => {
+      if (e?.message === 'Cancel Pressed') return;
+      console.warn('import error', e);
+      console.warn('err.stack', e?.stack);
+      presentAlert({ title: 'Import error', message: e?.message || String(e) });
+    };
 
-    task.current.promise
-      .then(({ cancelled, wallets: w }) => {
-        if (cancelled) return;
-        if (w.length === 1) saveWallet(w[0]); // Instantly save wallet if only one has been discovered
-        if (w.length === 0) {
-          triggerHapticFeedback(HapticFeedbackTypes.ImpactLight);
+    if (bip39) {
+      // Wiiiwallet supports one on-chain format. Restore the mnemonic using the
+      // same BIP49 P2SH-P2WPKH class and Wiiicoin derivation path used at creation.
+      // Do not run generic BlueWallet BIP84 discovery, which can return a w3i1 address.
+      (async () => {
+        try {
+          const passphrase = askPassphrase
+            ? await onPassword(loc.wallets.import_passphrase_title, loc.wallets.import_passphrase_message)
+            : undefined;
+          if (!active) return;
+
+          const wallet = createWiiicoinWalletFromMnemonic(importText, passphrase);
+          onProgress(`${wallet.typeReadable} ${wallet.getDerivationPath()}`);
+          onWallet(wallet);
+          saveWallet(wallet);
+        } catch (e: any) {
+          handleImportError(e);
+        } finally {
+          if (active) setLoading(false);
         }
-      })
-      .catch(e => {
-        console.warn('import error', e);
-        console.warn('err.stack', e.stack);
-        presentAlert({ title: 'Import error', message: e.message });
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      })();
+    } else {
+      task.current = startImport(importText, askPassphrase, searchAccounts, isElectrumDisabled, onProgress, onWallet, onPassword);
+
+      task.current.promise
+        .then(({ cancelled, wallets: w }) => {
+          if (cancelled) return;
+          if (w.length === 1) saveWallet(w[0]); // Instantly save wallet if only one has been discovered
+          if (w.length === 0) {
+            triggerHapticFeedback(HapticFeedbackTypes.ImpactLight);
+          }
+        })
+        .catch(handleImportError)
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }
 
     return () => {
+      active = false;
       task.current?.stop();
     };
-  }, [askPassphrase, importText, isElectrumDisabled, navigation, saveWallet, searchAccounts]);
+  }, [askPassphrase, bip39, importText, isElectrumDisabled, navigation, saveWallet, searchAccounts]);
 
   useEffect(() => {
     if (isPrivacyBlurEnabled) {
