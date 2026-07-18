@@ -89,7 +89,6 @@
     "lint:fix": "npm run lint -- --fix",
     "lint:quickfix": "git status --porcelain | grep -v '\\.json' | grep -E '\\.js|\\.ts' --color=never |  awk '{print $2}' | xargs eslint --fix; exit 0",
     "unit": "jest -b tests/unit/*",
-    "apply:wiiiwallet-consolidation": "node scripts/apply-wiiicoin-consolidation.mjs",
     "audit:wiiiwallet": "node scripts/audit-wiiiwallet-consolidation.mjs"
   },
   "dependencies": {
