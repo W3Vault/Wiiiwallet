@@ -1,0 +1,64 @@
+name: One-time WIII namespace root marker hex update
+
+on:
+  push:
+    branches:
+      - agent/rename-keva-to-wiii
+
+permissions:
+  contents: write
+
+jobs:
+  update-derived-hex:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update encoded marker
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          workflow = Path('.github/workflows/fix-wiii-root-marker-hex.yml')
+          old = '015f4b4556415f4e535f'
+          new = '015f574949495f4e535f'
+          changed = []
+          total = 0
+
+          for name in subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0'):
+              if not name:
+                  continue
+              path = Path(name)
+              if path == workflow or not path.is_file():
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  continue
+              count = text.count(old)
+              if count:
+                  path.write_text(text.replace(old, new), encoding='utf-8', newline='')
+                  changed.append(name)
+                  total += count
+
+          print(f'Updated {total} encoded marker values in {len(changed)} files')
+          for name in changed:
+              print(name)
+          if total == 0:
+              raise SystemExit('No old encoded marker values found')
+          PY
+
+      - name: Commit and remove workflow
+        shell: bash
+        run: |
+          rm .github/workflows/fix-wiii-root-marker-hex.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Update encoded WIII namespace root marker"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
