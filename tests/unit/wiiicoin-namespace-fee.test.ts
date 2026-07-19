@@ -1,13 +1,15 @@
 const coinSelectAccumulative = require('coinselect/accumulative');
 
 describe('Wiiicoin namespace fee sizing', () => {
-  it('includes the complete custom-output size at 2,000 satoshis per vbyte', () => {
+  it('matches the original wallet conservative funding-input estimate', () => {
     const result = coinSelectAccumulative(
       [
         {
           txid: '00'.repeat(32),
           vout: 0,
           value: 2_000_000,
+          // Wiiiwallet's namespace marker; the installed coinselect patch restores
+          // the original wallet's 148-byte funding-input estimate.
           script: { length: 50 },
         },
       ],
@@ -23,7 +25,6 @@ describe('Wiiicoin namespace fee sizing', () => {
 
     expect(result.inputs).toHaveLength(1);
     expect(result.outputs).toHaveLength(2);
-    expect(result.fee).toBe(388_000);
-    expect(result.fee).toBeGreaterThanOrEqual(386_000);
+    expect(result.fee).toBe(502_000);
   });
 });
