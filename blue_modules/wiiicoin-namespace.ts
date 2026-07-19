@@ -27,6 +27,10 @@ export const WIII_NAMESPACE_FEE_RATE = 2_000;
 // Namespace transactions in the original Wiiicoin wallet use a final input sequence.
 // Do not inherit the payment wallet's RBF sequence because the chain rejects that wire format.
 export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;
+// Wiiicoin mainnet launched after the 2020 NSFIX deployment window had expired.
+// The live mempool therefore uses the pre-NSFIX namespace hash: HASH160(input txid),
+// without appending the input output index.
+export const WIII_NAMESPACE_INCLUDE_VOUT = false;
 export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
 
 const DUMMY_TXID = 'c70483b4613b18e750d0b1087ada28d713ad1e406ebc87d36f94063512c5f0dd';
@@ -158,7 +162,8 @@ export function payloadToNamespace(payload: Uint8Array): string {
 export function deriveNamespacePayload(txid: string, vout: number): Uint8Array {
   if (!/^[0-9a-f]{64}$/i.test(txid)) throw new Error('Invalid namespace source transaction ID.');
   if (!Number.isInteger(vout) || vout < 0) throw new Error('Invalid namespace source output index.');
-  const source = Buffer.concat([Buffer.from(txid, 'hex').reverse(), Buffer.from(String(vout), 'utf8')]);
+  const txSource = Buffer.from(txid, 'hex').reverse();
+  const source = WIII_NAMESPACE_INCLUDE_VOUT ? Buffer.concat([txSource, Buffer.from(String(vout), 'utf8')]) : txSource;
   const namespaceHash = bitcoin.crypto.hash160(source);
   return Uint8Array.from(Buffer.concat([Buffer.from([53]), Buffer.from(namespaceHash)]));
 }

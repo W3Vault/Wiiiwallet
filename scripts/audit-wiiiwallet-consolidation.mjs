@@ -67,6 +67,9 @@ requireText(namespacePath, 'export const WIII_NAMESPACE_TX_VERSION = 0x7100;', '
 requireText(namespacePath, 'export const WIII_NAMESPACE_FEE_RATE = 2_000;', 'namespace data-transaction fee floor');
 requireText(namespacePath, 'Math.max(WIII_NAMESPACE_FEE_RATE', 'namespace fee estimate floor');
 requireText(namespacePath, 'export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;', 'namespace final input sequence');
+requireText(namespacePath, 'export const WIII_NAMESPACE_INCLUDE_VOUT = false;', 'live pre-NSFIX namespace derivation');
+requireText(namespacePath, 'WIII_NAMESPACE_INCLUDE_VOUT ? Buffer.concat', 'conditional namespace output-index hashing');
+forbidText(namespacePath, "const source = Buffer.concat([Buffer.from(txid, 'hex').reverse(), Buffer.from(String(vout), 'utf8')]);", 'always-on NSFIX namespace derivation');
 requireText(namespacePath, 'input, WIII_NAMESPACE_SEQUENCE,', 'namespace sequence applied to every input');
 forbidText(namespacePath, 'input, AbstractHDElectrumWallet.defaultRBFSequence,', 'namespace RBF input sequence');
 requireText(namespacePath, "Buffer.from('\\x01_WIII_NS_', 'utf8')", 'WIII namespace root marker');
@@ -83,6 +86,9 @@ requireOrder(
 
 requireFile('patches/coinselect+3.1.13.patch');
 requireFile('tests/unit/wiiicoin-namespace-fee.test.ts');
+requireFile('docs/WIIICOIN_NAMESPACE_DERIVATION.md');
+requireText('docs/WIIICOIN_NAMESPACE_DERIVATION.md', 'DEPLOYMENT_NSFIX', 'namespace deployment explanation');
+requireText('tests/unit/wiiicoin-namespace.test.ts', 'NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra', 'live rejected-input namespace regression');
 requireFile('docs/WIIICOIN_NAMESPACE_FEE_SIZING.md');
 requireText('patches/coinselect+3.1.13.patch', 'scriptBytes += 57', 'original 148-byte namespace funding-input estimate');
 requireText('patches/coinselect+3.1.13.patch', 'output.script.length + 4', 'complete namespace output estimate');
