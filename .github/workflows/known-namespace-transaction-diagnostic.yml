@@ -102,21 +102,38 @@ jobs:
                               receive_buffer.extend(chunk)
 
                       print('server_version:', json.dumps(rpc('server.version', ['Wiiiwallet known namespace diagnostic', ['1.4', '1.7']]), sort_keys=True))
-                      history = rpc('blockchain.scripthash.get_history', [script_hash])
-                      print('history:', json.dumps(history, sort_keys=True))
-                      txids = [item['tx_hash'] for item in history]
+
+                      keyvalues = rpc('blockchain.wiii.get_keyvalues', [script_hash, -1])
+                      print('keyvalues:', json.dumps(keyvalues, sort_keys=True))
+                      entries = keyvalues.get('keyvalues', []) if isinstance(keyvalues, dict) else []
+                      txids = []
+                      for entry in entries:
+                          txid = entry.get('tx_hash')
+                          if txid and txid not in txids:
+                              txids.append(txid)
+
                       if txids:
                           try:
                               infos = rpc('blockchain.wiii.get_transactions_info', [txids, True])
                               print('transaction_infos:', json.dumps(infos, sort_keys=True))
                           except Exception as error:
                               print('transaction_info_error:', repr(error))
-                      for index, item in enumerate(history):
+
+                      for index, txid in enumerate(txids):
                           try:
-                              raw = rpc('blockchain.transaction.get', [item['tx_hash'], False])
-                              print(f'raw_transaction_{index}_height_{item["height"]}:', raw)
+                              raw = rpc('blockchain.transaction.get', [txid, False])
+                              print(f'raw_transaction_{index}_{txid}:', raw)
                           except Exception as error:
-                              print(f'raw_transaction_{index}_error:', repr(error))
+                              print(f'raw_transaction_{index}_{txid}_error:', repr(error))
+
+                      for method in ['blockchain.transaction.get', 'blockchain.scripthash.get_history']:
+                          if not txids and method == 'blockchain.transaction.get':
+                              continue
+                          try:
+                              params = [txids[0], False] if method.endswith('transaction.get') else [script_hash]
+                              print(f'probe_{method}:', json.dumps(rpc(method, params), sort_keys=True))
+                          except Exception as error:
+                              print(f'probe_{method}_error:', repr(error))
           except Exception:
               traceback.print_exc()
           PY
