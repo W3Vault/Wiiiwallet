@@ -10,7 +10,7 @@ jobs:
     if: github.head_ref == 'agent/live-electrum-protocol-diagnostic'
     runs-on: ubuntu-latest
     steps:
-      - name: Retrieve known namespace history and raw transactions
+      - name: Retrieve known namespace indexes and raw transactions
         shell: bash
         run: |
           set +e
@@ -20,10 +20,11 @@ jobs:
           import socket
           import ssl
           import traceback
+          import urllib.parse
           import urllib.request
 
           namespace_id = 'NRrdrcoosujNi9FU1jznezpKcbySGkb2Y3'
-          api_url = 'https://www.wiiicoin.io/api/wg?n=NRrdrcoosujNi9FU1jznezpKcbySGkb2Y3&k=oil1-received.json'
+          known_key = b'oil1-received.json'
           alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
           def b58decode_check(value):
@@ -39,51 +40,60 @@ jobs:
               return payload
 
           def push_data(data):
-              size = len(data)
-              if size < 0x4c:
-                  return bytes([size]) + data
-              if size <= 0xff:
-                  return b'\x4c' + bytes([size]) + data
+              if len(data) < 0x4c:
+                  return bytes([len(data)]) + data
+              if len(data) <= 0xff:
+                  return b'\x4c' + bytes([len(data)]) + data
               raise ValueError('diagnostic data too large')
+
+          def index_scripthash(index_value):
+              script = b'\xd1' + push_data(index_value) + b'\x00\x6d\x75\x6a'
+              return script, hashlib.sha256(script).digest()[::-1].hex()
+
+          def http_text(url):
+              request = urllib.request.Request(url, headers={'User-Agent': 'Wiiiwallet namespace diagnostic'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return response.status, response.read().decode(errors='replace')
 
           try:
               payload = b58decode_check(namespace_id)
-              root_key = payload + b'\x01_WIII_NS_'
-              synthetic_script = b'\xd1' + push_data(root_key) + b'\x00\x6d\x75\x6a'
-              script_hash = hashlib.sha256(synthetic_script).digest()[::-1].hex()
+              indexes = {
+                  'wiii_profile': payload + b'\x01_WIII_NS_',
+                  'keva_profile': payload + b'\x01_KEVA_NS_',
+                  'known_key': payload + known_key,
+                  'namespace_payload': payload,
+              }
 
               print('namespace_id:', namespace_id)
               print('decoded_payload:', payload.hex())
               print('namespace_prefix_decimal:', payload[0])
-              print('root_key:', root_key.hex())
-              print('synthetic_script:', synthetic_script.hex())
-              print('scripthash:', script_hash)
+              for name, value in indexes.items():
+                  script, scripthash = index_scripthash(value)
+                  print(f'index_{name}_value:', value.hex())
+                  print(f'index_{name}_script:', script.hex())
+                  print(f'index_{name}_scripthash:', scripthash)
 
               try:
-                  request = urllib.request.Request(api_url, headers={'User-Agent': 'Wiiiwallet namespace diagnostic'})
-                  with urllib.request.urlopen(request, timeout=30) as response:
-                      print('api_status:', response.status)
-                      print('api_body:', response.read().decode(errors='replace'))
+                  query = urllib.parse.urlencode({'n': namespace_id, 'k': known_key.decode()})
+                  status, body = http_text('https://www.wiiicoin.io/api/wg?' + query)
+                  print('wg_api_status:', status)
+                  print('wg_api_body:', body)
               except Exception as error:
-                  print('api_error:', repr(error))
+                  print('wg_api_error:', repr(error))
 
               host = 'etx1.wiiicoin.io'
               port = 50002
               context = ssl.create_default_context()
               request_counter = [1]
               receive_buffer = bytearray()
+              txids = []
 
               with socket.create_connection((host, port), timeout=30) as sock:
                   with context.wrap_socket(sock, server_hostname=host) as stream:
                       def rpc(method, params):
                           request_id = request_counter[0]
                           request_counter[0] += 1
-                          stream.sendall((json.dumps({
-                              'jsonrpc': '2.0',
-                              'id': request_id,
-                              'method': method,
-                              'params': params,
-                          }) + '\n').encode())
+                          stream.sendall((json.dumps({'jsonrpc': '2.0', 'id': request_id, 'method': method, 'params': params}) + '\n').encode())
                           while True:
                               newline = receive_buffer.find(b'\n')
                               if newline >= 0:
@@ -103,15 +113,20 @@ jobs:
 
                       print('server_version:', json.dumps(rpc('server.version', ['Wiiiwallet known namespace diagnostic', ['1.4', '1.7']]), sort_keys=True))
 
-                      keyvalues = rpc('blockchain.wiii.get_keyvalues', [script_hash, -1])
-                      print('keyvalues:', json.dumps(keyvalues, sort_keys=True))
-                      entries = keyvalues.get('keyvalues', []) if isinstance(keyvalues, dict) else []
-                      txids = []
-                      for entry in entries:
-                          txid = entry.get('tx_hash')
-                          if txid and txid not in txids:
-                              txids.append(txid)
+                      for name, value in indexes.items():
+                          _, scripthash = index_scripthash(value)
+                          try:
+                              result = rpc('blockchain.wiii.get_keyvalues', [scripthash, -1])
+                              print(f'keyvalues_{name}:', json.dumps(result, sort_keys=True))
+                              entries = result.get('keyvalues', []) if isinstance(result, dict) else []
+                              for entry in entries:
+                                  txid = entry.get('tx_hash')
+                                  if txid and txid not in txids:
+                                      txids.append(txid)
+                          except Exception as error:
+                              print(f'keyvalues_{name}_error:', repr(error))
 
+                      print('collected_txids:', json.dumps(txids))
                       if txids:
                           try:
                               infos = rpc('blockchain.wiii.get_transactions_info', [txids, True])
@@ -119,21 +134,44 @@ jobs:
                           except Exception as error:
                               print('transaction_info_error:', repr(error))
 
-                      for index, txid in enumerate(txids):
+                      for txid in txids:
                           try:
                               raw = rpc('blockchain.transaction.get', [txid, False])
-                              print(f'raw_transaction_{index}_{txid}:', raw)
+                              print(f'electrum_raw_{txid}:', raw)
                           except Exception as error:
-                              print(f'raw_transaction_{index}_{txid}_error:', repr(error))
+                              print(f'electrum_raw_{txid}_error:', repr(error))
 
-                      for method in ['blockchain.transaction.get', 'blockchain.scripthash.get_history']:
-                          if not txids and method == 'blockchain.transaction.get':
-                              continue
-                          try:
-                              params = [txids[0], False] if method.endswith('transaction.get') else [script_hash]
-                              print(f'probe_{method}:', json.dumps(rpc(method, params), sort_keys=True))
-                          except Exception as error:
-                              print(f'probe_{method}_error:', repr(error))
+              for txid in txids:
+                  for decrypt in (0, 1):
+                      try:
+                          query = urllib.parse.urlencode({'txid': txid, 'decrypt': decrypt})
+                          status, body = http_text('https://www.wiiicoin.io/api/getrawtransaction?' + query)
+                          print(f'explorer_raw_{txid}_decrypt_{decrypt}_status:', status)
+                          print(f'explorer_raw_{txid}_decrypt_{decrypt}:', body)
+                      except Exception as error:
+                          print(f'explorer_raw_{txid}_decrypt_{decrypt}_error:', repr(error))
+                  try:
+                      status, body = http_text('https://www.wiiicoin.io/ext/gettx/' + txid)
+                      print(f'explorer_ext_{txid}_status:', status)
+                      print(f'explorer_ext_{txid}:', body)
+                  except Exception as error:
+                      print(f'explorer_ext_{txid}_error:', repr(error))
+
+              failed_input_txid = '5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee655747f8391bcdc842'
+              for decrypt in (0, 1):
+                  try:
+                      query = urllib.parse.urlencode({'txid': failed_input_txid, 'decrypt': decrypt})
+                      status, body = http_text('https://www.wiiicoin.io/api/getrawtransaction?' + query)
+                      print(f'failed_input_raw_decrypt_{decrypt}_status:', status)
+                      print(f'failed_input_raw_decrypt_{decrypt}:', body)
+                  except Exception as error:
+                      print(f'failed_input_raw_decrypt_{decrypt}_error:', repr(error))
+              try:
+                  status, body = http_text('https://www.wiiicoin.io/ext/gettx/' + failed_input_txid)
+                  print('failed_input_ext_status:', status)
+                  print('failed_input_ext:', body)
+              except Exception as error:
+                  print('failed_input_ext_error:', repr(error))
           except Exception:
               traceback.print_exc()
           PY
