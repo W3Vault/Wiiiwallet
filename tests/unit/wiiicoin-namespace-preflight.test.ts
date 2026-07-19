@@ -1,6 +1,8 @@
 import {
   NamespaceMempoolRejectedError,
+  NamespacePreflightUnavailableError,
   namespaceMempoolRejectReason,
+  namespacePreflightNegotiatedProtocol,
 } from '../../blue_modules/wiiicoin-namespace-preflight';
 
 describe('Wiiicoin namespace mempool preflight', () => {
@@ -27,9 +29,20 @@ describe('Wiiicoin namespace mempool preflight', () => {
     expect(namespaceMempoolRejectReason([{ allowed: true }])).toBeUndefined();
   });
 
+  it('reads the protocol negotiated by server.version', () => {
+    expect(namespacePreflightNegotiatedProtocol(['ElectrumX 2.0.0', '1.7'])).toBe('1.7');
+    expect(namespacePreflightNegotiatedProtocol({ protocol_max: '1.7' })).toBeUndefined();
+  });
+
   it('creates a readable node rejection error', () => {
     expect(new NamespaceMempoolRejectedError('min relay fee not met').message).toBe(
       'Wiiicoin Core rejected the namespace transaction: min relay fee not met',
+    );
+  });
+
+  it('creates a readable protocol diagnostic instead of silently falling back', () => {
+    expect(new NamespacePreflightUnavailableError('ElectrumX negotiated protocol 1.4; protocol 1.7 is required.').message).toBe(
+      'Namespace preflight could not run: ElectrumX negotiated protocol 1.4; protocol 1.7 is required.',
     );
   });
 });
