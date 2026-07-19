@@ -120,6 +120,8 @@ requireText('navigation/index.tsx', 'NamespaceDetails', 'namespace details navig
 requireText('screen/settings/SettingsTools.tsx', 'NamespaceManager', 'Settings → Tools namespace entry');
 requireText('screen/settings/NamespaceManager.tsx', 'formatNamespaceError(error)', 'namespace creation RPC error formatting');
 requireText('screen/settings/NamespaceDetails.tsx', 'formatNamespaceError(error)', 'namespace mutation RPC error formatting');
+forbidText('screen/settings/NamespaceManager.tsx', 'if (error instanceof Error) return error.message;', 'namespace manager Error formatter bypass');
+forbidText('screen/settings/NamespaceDetails.tsx', 'if (error instanceof Error) return error.message;', 'namespace details Error formatter bypass');
 requireText('screen/settings/NamespaceManager.tsx', 'preflightNamespaceTransaction(transaction.tx)', 'namespace creation mempool preflight');
 requireText('screen/settings/NamespaceDetails.tsx', 'preflightNamespaceTransaction(transaction.tx)', 'namespace mutation mempool preflight');
 requireText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.wiii.', 'WIII namespace documentation');
