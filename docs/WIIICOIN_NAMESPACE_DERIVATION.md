@@ -17,3 +17,7 @@ For the device funding input `5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee6557
 ```
 
 Its Base58Check namespace ID is `NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra`.
+
+## Regression coverage
+
+The unit suite checks the exact device funding input and verifies that changing the input output index does not change the namespace ID while the live pre-NSFIX rule is active. The permanent consolidation audit prevents the always-on NSFIX derivation from returning.
