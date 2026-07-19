@@ -31,11 +31,6 @@ function collectMessages(value: unknown, messages: string[], seen: Set<unknown>)
     return;
   }
 
-  if (value instanceof Error) {
-    collectMessages(value.message, messages, seen);
-    return;
-  }
-
   if (typeof value !== 'object') return;
   seen.add(value);
 
