@@ -81,10 +81,20 @@ requireOrder(
   'namespace outputs before input signatures',
 );
 
+requireFile('patches/coinselect+3.1.13.patch');
+requireFile('tests/unit/wiiicoin-namespace-fee.test.ts');
+requireFile('docs/WIIICOIN_NAMESPACE_FEE_SIZING.md');
+requireText('patches/coinselect+3.1.13.patch', 'scriptBytes += 57', 'original 148-byte namespace funding-input estimate');
+requireText('patches/coinselect+3.1.13.patch', 'output.script.length + 4', 'complete namespace output estimate');
+requireText('tests/unit/wiiicoin-namespace-fee.test.ts', 'expect(result.fee).toBe(502_000);', 'original wallet namespace fee regression');
+requireText('docs/WIIICOIN_NAMESPACE_FEE_SIZING.md', '0.00502000 WIII', 'documented original wallet fee result');
+
 requireFile('blue_modules/wiiicoin-namespace-error.ts');
 requireFile('tests/unit/wiiicoin-namespace-error.test.ts');
-requireText('blue_modules/wiiicoin-namespace-error.ts', "json !== '{}'", 'structured namespace RPC error formatting');
-requireText('blue_modules/wiiicoin-namespace-error.ts', "[0-9a-f]{128,}", 'raw transaction rejection redaction');
+requireText('blue_modules/wiiicoin-namespace-error.ts', 'candidate.data', 'nested daemon rejection detail');
+requireText('blue_modules/wiiicoin-namespace-error.ts', "candidate['reject-details']", 'daemon reject-details support');
+requireText('blue_modules/wiiicoin-namespace-error.ts', '[0-9a-f]{128,}', 'raw transaction rejection redaction');
+requireText('tests/unit/wiiicoin-namespace-error.test.ts', 'mandatory-script-verify-flag-failed', 'nested rejection detail regression');
 
 for (const path of [
   'screen/settings/NamespaceManager.tsx',

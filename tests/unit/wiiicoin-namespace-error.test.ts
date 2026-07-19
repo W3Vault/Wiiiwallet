@@ -7,10 +7,31 @@ describe('Wiiicoin namespace errors', () => {
     );
   });
 
+  it('shows a separate daemon rejection detail supplied in error data', () => {
+    expect(
+      formatNamespaceError({
+        code: 1,
+        message: 'the transaction was rejected by network rules.',
+        data: { reason: 'mandatory-script-verify-flag-failed' },
+      }),
+    ).toBe('the transaction was rejected by network rules.\nmandatory-script-verify-flag-failed (code 1)');
+  });
+
   it('removes a raw transaction dump from a network rejection', () => {
     const rawTransaction = '00'.repeat(274);
     expect(formatNamespaceError({ code: 1, message: `the transaction was rejected by network rules.\n\n[${rawTransaction}]` })).toBe(
       'the transaction was rejected by network rules. (code 1)',
     );
+  });
+
+  it('does not display a raw transaction supplied only in error data', () => {
+    const rawTransaction = '00'.repeat(274);
+    expect(
+      formatNamespaceError({
+        code: 1,
+        message: 'the transaction was rejected by network rules.',
+        data: rawTransaction,
+      }),
+    ).toBe('the transaction was rejected by network rules. (code 1)');
   });
 });
