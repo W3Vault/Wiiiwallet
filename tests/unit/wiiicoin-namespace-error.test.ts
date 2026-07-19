@@ -17,6 +17,19 @@ describe('Wiiicoin namespace errors', () => {
     ).toBe('the transaction was rejected by network rules.\nmandatory-script-verify-flag-failed (code 1)');
   });
 
+  it('preserves custom Electrum fields attached to an Error instance', () => {
+    const error = new Error('the transaction was rejected by network rules.') as Error & {
+      code: number;
+      data: { reason: string };
+    };
+    error.code = 1;
+    error.data = { reason: 'bad-txns-inputs-missingorspent' };
+
+    expect(formatNamespaceError(error)).toBe(
+      'the transaction was rejected by network rules.\nbad-txns-inputs-missingorspent (code 1)',
+    );
+  });
+
   it('removes a raw transaction dump from a network rejection', () => {
     const rawTransaction = '00'.repeat(274);
     expect(formatNamespaceError({ code: 1, message: `the transaction was rejected by network rules.\n\n[${rawTransaction}]` })).toBe(
