@@ -13,11 +13,13 @@ jobs:
       - name: Retrieve known namespace history and raw transactions
         shell: bash
         run: |
-          python3 - <<'PY' | tee known-namespace-diagnostic.txt
+          set +e
+          python3 - <<'PY' > known-namespace-diagnostic.txt 2>&1
           import hashlib
           import json
           import socket
           import ssl
+          import traceback
           import urllib.request
 
           namespace_id = 'NRrdrcoosujNi9FU1jznezpKcbySGkb2Y3'
@@ -44,70 +46,82 @@ jobs:
                   return b'\x4c' + bytes([size]) + data
               raise ValueError('diagnostic data too large')
 
-          payload = b58decode_check(namespace_id)
-          root_key = payload + b'\x01_WIII_NS_'
-          synthetic_script = b'\xd1' + push_data(root_key) + b'\x00\x6d\x75\x6a'
-          script_hash = hashlib.sha256(synthetic_script).digest()[::-1].hex()
-
-          print('namespace_id:', namespace_id)
-          print('decoded_payload:', payload.hex())
-          print('namespace_prefix_decimal:', payload[0])
-          print('root_key:', root_key.hex())
-          print('synthetic_script:', synthetic_script.hex())
-          print('scripthash:', script_hash)
-
           try:
-              with urllib.request.urlopen(api_url, timeout=30) as response:
-                  print('api_status:', response.status)
-                  print('api_body:', response.read().decode(errors='replace'))
-          except Exception as error:
-              print('api_error:', repr(error))
+              payload = b58decode_check(namespace_id)
+              root_key = payload + b'\x01_WIII_NS_'
+              synthetic_script = b'\xd1' + push_data(root_key) + b'\x00\x6d\x75\x6a'
+              script_hash = hashlib.sha256(synthetic_script).digest()[::-1].hex()
 
-          host = 'etx1.wiiicoin.io'
-          port = 50002
-          context = ssl.create_default_context()
-          next_id = 1
+              print('namespace_id:', namespace_id)
+              print('decoded_payload:', payload.hex())
+              print('namespace_prefix_decimal:', payload[0])
+              print('root_key:', root_key.hex())
+              print('synthetic_script:', synthetic_script.hex())
+              print('scripthash:', script_hash)
 
-          with socket.create_connection((host, port), timeout=30) as sock:
-              with context.wrap_socket(sock, server_hostname=host) as stream:
-                  buffer = b''
+              try:
+                  request = urllib.request.Request(api_url, headers={'User-Agent': 'Wiiiwallet namespace diagnostic'})
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      print('api_status:', response.status)
+                      print('api_body:', response.read().decode(errors='replace'))
+              except Exception as error:
+                  print('api_error:', repr(error))
 
-                  def request(method, params):
-                      nonlocal_id = None
-                      global next_id
-                      request_id = next_id
-                      next_id += 1
-                      stream.sendall((json.dumps({
-                          'jsonrpc': '2.0',
-                          'id': request_id,
-                          'method': method,
-                          'params': params,
-                      }) + '\n').encode())
-                      nonlocal_buffer = b''
-                      while b'\n' not in nonlocal_buffer:
-                          chunk = stream.recv(1_000_000)
-                          if not chunk:
-                              raise ConnectionError('ElectrumX closed connection')
-                          nonlocal_buffer += chunk
-                      line, _, remainder = nonlocal_buffer.partition(b'\n')
-                      if remainder:
-                          print('warning_unparsed_bytes:', remainder.decode(errors='replace'))
-                      result = json.loads(line)
-                      if result.get('error'):
-                          raise RuntimeError(result['error'])
-                      return result.get('result')
+              host = 'etx1.wiiicoin.io'
+              port = 50002
+              context = ssl.create_default_context()
+              request_counter = [1]
+              receive_buffer = bytearray()
 
-                  print('server_version:', json.dumps(request('server.version', ['Wiiiwallet known namespace diagnostic', ['1.4', '1.7']]), sort_keys=True))
-                  history = request('blockchain.scripthash.get_history', [script_hash])
-                  print('history:', json.dumps(history, sort_keys=True))
-                  txids = [item['tx_hash'] for item in history]
-                  if txids:
-                      infos = request('blockchain.wiii.get_transactions_info', [txids, True])
-                      print('transaction_infos:', json.dumps(infos, sort_keys=True))
-                  for index, item in enumerate(history):
-                      raw = request('blockchain.transaction.get', [item['tx_hash'], False])
-                      print(f'raw_transaction_{index}_height_{item["height"]}:', raw)
+              with socket.create_connection((host, port), timeout=30) as sock:
+                  with context.wrap_socket(sock, server_hostname=host) as stream:
+                      def rpc(method, params):
+                          request_id = request_counter[0]
+                          request_counter[0] += 1
+                          stream.sendall((json.dumps({
+                              'jsonrpc': '2.0',
+                              'id': request_id,
+                              'method': method,
+                              'params': params,
+                          }) + '\n').encode())
+                          while True:
+                              newline = receive_buffer.find(b'\n')
+                              if newline >= 0:
+                                  line = bytes(receive_buffer[:newline])
+                                  del receive_buffer[:newline + 1]
+                                  response = json.loads(line)
+                                  if response.get('id') != request_id:
+                                      print('unexpected_response:', json.dumps(response, sort_keys=True))
+                                      continue
+                                  if response.get('error'):
+                                      raise RuntimeError(response['error'])
+                                  return response.get('result')
+                              chunk = stream.recv(1_000_000)
+                              if not chunk:
+                                  raise ConnectionError('ElectrumX closed connection')
+                              receive_buffer.extend(chunk)
+
+                      print('server_version:', json.dumps(rpc('server.version', ['Wiiiwallet known namespace diagnostic', ['1.4', '1.7']]), sort_keys=True))
+                      history = rpc('blockchain.scripthash.get_history', [script_hash])
+                      print('history:', json.dumps(history, sort_keys=True))
+                      txids = [item['tx_hash'] for item in history]
+                      if txids:
+                          try:
+                              infos = rpc('blockchain.wiii.get_transactions_info', [txids, True])
+                              print('transaction_infos:', json.dumps(infos, sort_keys=True))
+                          except Exception as error:
+                              print('transaction_info_error:', repr(error))
+                      for index, item in enumerate(history):
+                          try:
+                              raw = rpc('blockchain.transaction.get', [item['tx_hash'], False])
+                              print(f'raw_transaction_{index}_height_{item["height"]}:', raw)
+                          except Exception as error:
+                              print(f'raw_transaction_{index}_error:', repr(error))
+          except Exception:
+              traceback.print_exc()
           PY
+          cat known-namespace-diagnostic.txt
+          true
 
       - name: Upload diagnostic
         uses: actions/upload-artifact@v4
