@@ -1,0 +1,62 @@
+name: Live Wiiicoin ElectrumX protocol diagnostic
+
+on:
+  push:
+    branches:
+      - agent/live-electrum-protocol-diagnostic
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query live ElectrumX endpoint
+        shell: bash
+        run: |
+          python3 - <<'PY' | tee electrum-diagnostic.txt
+          import json
+          import socket
+          import ssl
+
+          host = 'etx1.wiiicoin.io'
+          port = 50002
+
+          def send(stream, request):
+              stream.sendall((json.dumps(request) + '\n').encode())
+              data = b''
+              while b'\n' not in data:
+                  chunk = stream.recv(65536)
+                  if not chunk:
+                      break
+                  data += chunk
+              print(data.decode(errors='replace').strip())
+
+          context = ssl.create_default_context()
+          with socket.create_connection((host, port), timeout=20) as sock:
+              with context.wrap_socket(sock, server_hostname=host) as stream:
+                  send(stream, {
+                      'jsonrpc': '2.0',
+                      'id': 1,
+                      'method': 'server.version',
+                      'params': ['Wiiiwallet CI diagnostic', ['1.7', '1.7']],
+                  })
+                  send(stream, {
+                      'jsonrpc': '2.0',
+                      'id': 2,
+                      'method': 'server.features',
+                      'params': [],
+                  })
+                  send(stream, {
+                      'jsonrpc': '2.0',
+                      'id': 3,
+                      'method': 'blockchain.transaction.testmempoolaccept',
+                      'params': [['00']],
+                  })
+          PY
+
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-electrum-protocol-diagnostic
+          path: electrum-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 2
