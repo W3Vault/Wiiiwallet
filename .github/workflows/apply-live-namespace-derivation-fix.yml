@@ -1,0 +1,139 @@
+name: Apply live Wiiicoin namespace derivation fix
+
+on:
+  push:
+    branches:
+      - agent/fix-live-namespace-derivation
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-live-namespace-derivation
+          fetch-depth: 0
+
+      - name: Apply live-chain namespace derivation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          namespace_path = Path('blue_modules/wiiicoin-namespace.ts')
+          text = namespace_path.read_text()
+
+          old = """export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;
+export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
+"""
+          new = """export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;
+// Wiiicoin mainnet launched after the 2020 NSFIX deployment window had expired.
+// The live mempool therefore uses the pre-NSFIX namespace hash: HASH160(input txid),
+// without appending the input output index.
+export const WIII_NAMESPACE_INCLUDE_VOUT = false;
+export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
+"""
+          if old not in text:
+              raise SystemExit('Missing namespace constants anchor')
+          text = text.replace(old, new, 1)
+
+          old = """  const source = Buffer.concat([Buffer.from(txid, 'hex').reverse(), Buffer.from(String(vout), 'utf8')]);
+  const namespaceHash = bitcoin.crypto.hash160(source);
+"""
+          new = """  const txSource = Buffer.from(txid, 'hex').reverse();
+  const source = WIII_NAMESPACE_INCLUDE_VOUT ? Buffer.concat([txSource, Buffer.from(String(vout), 'utf8')]) : txSource;
+  const namespaceHash = bitcoin.crypto.hash160(source);
+"""
+          if old not in text:
+              raise SystemExit('Missing namespace derivation anchor')
+          text = text.replace(old, new, 1)
+          namespace_path.write_text(text)
+
+          test_path = Path('tests/unit/wiiicoin-namespace.test.ts')
+          test = test_path.read_text()
+          test = test.replace(
+              "  WIII_NAMESPACE_FEE_RATE,\n  WIII_NAMESPACE_SEQUENCE,",
+              "  WIII_NAMESPACE_FEE_RATE,\n  WIII_NAMESPACE_INCLUDE_VOUT,\n  WIII_NAMESPACE_SEQUENCE,",
+              1,
+          )
+          test = test.replace(
+              "const NAMESPACE_ID = 'NaCaQWV7fnZDRFKVBhkhUvysEG1UKJvd1P';\nconst NAMESPACE_PAYLOAD = '359cb5d1022c53411522ebe7f5b179772d0f1f54fd';",
+              "const NAMESPACE_ID = 'NQTgCkBifLVXpFhtc4LVYr2aL1Pc3rymF2';\nconst NAMESPACE_PAYLOAD = '3531dfa323f306ee13ba63fa2ab7c51a94160dabf5';\nconst DEVICE_SOURCE_TXID = '5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee655747f8391bcdc842';\nconst DEVICE_NAMESPACE_ID = 'NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra';\nconst DEVICE_NAMESPACE_PAYLOAD = '355051a7934af8ef07459f61a8af5baac641465b45';",
+              1,
+          )
+          old_test = """  it('derives the legacy-compatible namespace identifier from the first input', () => {
+    expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
+    expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
+    expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
+  });
+"""
+          new_test = """  it('uses the live pre-NSFIX namespace derivation without the output index', () => {
+    expect(WIII_NAMESPACE_INCLUDE_VOUT).toBe(false);
+    expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
+    expect(deriveNamespaceId(SOURCE_TXID, 1)).toBe(NAMESPACE_ID);
+    expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
+    expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
+  });
+
+  it('matches the live device funding input rejected by the NSFIX-era payload', () => {
+    expect(deriveNamespaceId(DEVICE_SOURCE_TXID, 0)).toBe(DEVICE_NAMESPACE_ID);
+    expect(uint8ArrayToHex(namespaceToPayload(DEVICE_NAMESPACE_ID))).toBe(DEVICE_NAMESPACE_PAYLOAD);
+  });
+"""
+          if old_test not in test:
+              raise SystemExit('Missing namespace derivation test anchor')
+          test = test.replace(old_test, new_test, 1)
+          test_path.write_text(test)
+
+          audit_path = Path('scripts/audit-wiiiwallet-consolidation.mjs')
+          audit = audit_path.read_text()
+          anchor = "requireText(namespacePath, 'export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;', 'namespace final input sequence');\n"
+          insertion = anchor + "requireText(namespacePath, 'export const WIII_NAMESPACE_INCLUDE_VOUT = false;', 'live pre-NSFIX namespace derivation');\nrequireText(namespacePath, 'WIII_NAMESPACE_INCLUDE_VOUT ? Buffer.concat', 'conditional namespace output-index hashing');\nforbidText(namespacePath, \"const source = Buffer.concat([Buffer.from(txid, 'hex').reverse(), Buffer.from(String(vout), 'utf8')]);\", 'always-on NSFIX namespace derivation');\n"
+          if anchor not in audit:
+              raise SystemExit('Missing namespace audit anchor')
+          audit = audit.replace(anchor, insertion, 1)
+          file_anchor = "requireFile('tests/unit/wiiicoin-namespace-fee.test.ts');\n"
+          file_insert = file_anchor + "requireFile('docs/WIIICOIN_NAMESPACE_DERIVATION.md');\nrequireText('docs/WIIICOIN_NAMESPACE_DERIVATION.md', 'DEPLOYMENT_NSFIX', 'namespace deployment explanation');\nrequireText('tests/unit/wiiicoin-namespace.test.ts', 'NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra', 'live rejected-input namespace regression');\n"
+          if file_anchor not in audit:
+              raise SystemExit('Missing namespace documentation audit anchor')
+          audit = audit.replace(file_anchor, file_insert, 1)
+          audit_path.write_text(audit)
+
+          Path('docs/WIIICOIN_NAMESPACE_DERIVATION.md').write_text("""# Wiiicoin namespace derivation
+
+Wiiicoin Core derives a namespace identifier from the first funding input. The hash format depends on the `DEPLOYMENT_NSFIX` version-bits state.
+
+Mainnet was created in September 2025, while the configured `DEPLOYMENT_NSFIX` signalling window ran from 15 July 2020 to 30 August 2020. The deployment therefore did not activate on the live chain. Its mempool uses the pre-NSFIX rule:
+
+```text
+namespace payload = 0x35 || HASH160(reverse(input_0_txid))
+```
+
+The output index must not be appended. Appending the ASCII output index creates a different payload and `CWiiiMemPool::validateNamespace` rejects the transaction without a detailed validation-state message, which ElectrumX surfaces as `the transaction was rejected by network rules`.
+
+For the device funding input `5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee655747f8391bcdc842:0`, the live payload is:
+
+```text
+355051a7934af8ef07459f61a8af5baac641465b45
+```
+
+Its Base58Check namespace ID is `NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra`.
+""")
+          PY
+
+      - name: Remove temporary workflow and trigger
+        run: |
+          git rm .github/workflows/apply-live-namespace-derivation-fix.yml
+          git rm docs/.live-namespace-derivation-trigger
+
+      - name: Commit correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix namespace derivation for live Wiiicoin mainnet"
+          git push origin HEAD:agent/fix-live-namespace-derivation
