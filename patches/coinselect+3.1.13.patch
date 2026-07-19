@@ -1,8 +1,20 @@
 diff --git a/node_modules/coinselect/utils.js b/node_modules/coinselect/utils.js
-index 2aca8e1..b7f59f2 100644
+index 2aca8e1..f4b7568 100644
 --- a/node_modules/coinselect/utils.js
 +++ b/node_modules/coinselect/utils.js
-@@ -12,7 +12,10 @@ function inputBytes (input) {
+@@ -8,11 +8,20 @@ function uintOrNaN (v) {
+ }
+ 
+ function inputBytes (input) {
+-  return TX_INPUT_BASE + (input.script ? input.script.length : TX_INPUT_PUBKEYHASH)
++  var scriptBytes = input.script ? input.script.length : TX_INPUT_PUBKEYHASH
++
++  // Wiiiwallet marks namespace funding inputs with the legacy 50-byte estimate.
++  // The original Wiiicoin wallet left this field unset, so coinselect used its
++  // conservative 107-byte P2PKH script estimate: 41 + 107 = 148 bytes per input.
++  if (input.script && input.script.length === 50) scriptBytes += 57
++
++  return TX_INPUT_BASE + scriptBytes
  }
  
  function outputBytes (output) {
