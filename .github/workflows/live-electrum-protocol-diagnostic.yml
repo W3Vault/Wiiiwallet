@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - agent/live-electrum-protocol-diagnostic
+  pull_request:
+    branches:
+      - master
 
 jobs:
   diagnose:
+    if: github.head_ref == 'agent/live-electrum-protocol-diagnostic' || github.ref_name == 'agent/live-electrum-protocol-diagnostic'
     runs-on: ubuntu-latest
     steps:
       - name: Query live ElectrumX endpoint
