@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { formatNamespaceError } from '../../blue_modules/wiiicoin-namespace-error';
+import { preflightNamespaceTransaction } from '../../blue_modules/wiiicoin-namespace-preflight';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
 import {
   deleteNamespaceKey,
@@ -95,6 +96,7 @@ const NamespaceDetails: React.FC = () => {
           if (!authenticated) return;
         }
 
+        await preflightNamespaceTransaction(transaction.tx);
         if (!(await BlueElectrum.ensureConnected())) throw new Error(namespaceStrings.networkError);
         await BlueElectrum.broadcastV2(transaction.tx);
         if (!leaveScreen && transaction.controlTxid && transaction.controlVout !== undefined) {

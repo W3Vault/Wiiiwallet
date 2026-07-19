@@ -96,6 +96,14 @@ requireText('blue_modules/wiiicoin-namespace-error.ts', "candidate['reject-detai
 requireText('blue_modules/wiiicoin-namespace-error.ts', '[0-9a-f]{128,}', 'raw transaction rejection redaction');
 requireText('tests/unit/wiiicoin-namespace-error.test.ts', 'mandatory-script-verify-flag-failed', 'nested rejection detail regression');
 
+const namespacePreflightPath = 'blue_modules/wiiicoin-namespace-preflight.ts';
+requireFile(namespacePreflightPath);
+requireFile('tests/unit/wiiicoin-namespace-preflight.test.ts');
+requireText(namespacePreflightPath, "version: '1.7'", 'Electrum protocol 1.7 namespace preflight');
+requireText(namespacePreflightPath, 'blockchain.transaction.testmempoolaccept', 'namespace mempool acceptance RPC');
+requireText(namespacePreflightPath, 'NamespaceMempoolRejectedError', 'readable Core rejection error');
+requireText('tests/unit/wiiicoin-namespace-preflight.test.ts', 'mandatory-script-verify-flag-failed', 'mempool reject-reason regression');
+
 for (const path of [
   'screen/settings/NamespaceManager.tsx',
   'screen/settings/NamespaceDetails.tsx',
@@ -108,6 +116,8 @@ requireText('navigation/index.tsx', 'NamespaceDetails', 'namespace details navig
 requireText('screen/settings/SettingsTools.tsx', 'NamespaceManager', 'Settings → Tools namespace entry');
 requireText('screen/settings/NamespaceManager.tsx', 'formatNamespaceError(error)', 'namespace creation RPC error formatting');
 requireText('screen/settings/NamespaceDetails.tsx', 'formatNamespaceError(error)', 'namespace mutation RPC error formatting');
+requireText('screen/settings/NamespaceManager.tsx', 'preflightNamespaceTransaction(transaction.tx)', 'namespace creation mempool preflight');
+requireText('screen/settings/NamespaceDetails.tsx', 'preflightNamespaceTransaction(transaction.tx)', 'namespace mutation mempool preflight');
 requireText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.wiii.', 'WIII namespace documentation');
 forbidText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.keva.', 'legacy namespace documentation');
 
