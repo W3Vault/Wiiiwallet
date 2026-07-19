@@ -94,15 +94,19 @@ requireFile('tests/unit/wiiicoin-namespace-error.test.ts');
 requireText('blue_modules/wiiicoin-namespace-error.ts', 'candidate.data', 'nested daemon rejection detail');
 requireText('blue_modules/wiiicoin-namespace-error.ts', "candidate['reject-details']", 'daemon reject-details support');
 requireText('blue_modules/wiiicoin-namespace-error.ts', '[0-9a-f]{128,}', 'raw transaction rejection redaction');
-requireText('tests/unit/wiiicoin-namespace-error.test.ts', 'mandatory-script-verify-flag-failed', 'nested rejection detail regression');
+requireText('tests/unit/wiiicoin-namespace-error.test.ts', 'bad-txns-inputs-missingorspent', 'Error-instance rejection detail regression');
 
 const namespacePreflightPath = 'blue_modules/wiiicoin-namespace-preflight.ts';
 requireFile(namespacePreflightPath);
 requireFile('tests/unit/wiiicoin-namespace-preflight.test.ts');
-requireText(namespacePreflightPath, "version: '1.7'", 'Electrum protocol 1.7 namespace preflight');
+requireText(namespacePreflightPath, "version: ['1.7', '1.7']", 'strict Electrum protocol 1.7 namespace preflight');
 requireText(namespacePreflightPath, 'blockchain.transaction.testmempoolaccept', 'namespace mempool acceptance RPC');
 requireText(namespacePreflightPath, 'NamespaceMempoolRejectedError', 'readable Core rejection error');
+requireText(namespacePreflightPath, 'NamespacePreflightUnavailableError', 'readable preflight protocol error');
+requireText(namespacePreflightPath, 'ElectrumX negotiated protocol', 'negotiated protocol diagnostic');
+forbidText(namespacePreflightPath, 'Preflight is an optional diagnostic layer', 'silent preflight fallback');
 requireText('tests/unit/wiiicoin-namespace-preflight.test.ts', 'mandatory-script-verify-flag-failed', 'mempool reject-reason regression');
+requireText('tests/unit/wiiicoin-namespace-preflight.test.ts', 'protocol 1.7 is required', 'protocol diagnostic regression');
 
 for (const path of [
   'screen/settings/NamespaceManager.tsx',
