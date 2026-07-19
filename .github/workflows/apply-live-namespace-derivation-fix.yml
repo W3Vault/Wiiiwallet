@@ -4,12 +4,16 @@ on:
   push:
     branches:
       - agent/fix-live-namespace-derivation
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
 
 jobs:
   patch:
+    if: github.head_ref == 'agent/fix-live-namespace-derivation' || github.ref_name == 'agent/fix-live-namespace-derivation'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,26 +31,26 @@ jobs:
           text = namespace_path.read_text()
 
           old = """export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;
-export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
-"""
+          export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
+          """
           new = """export const WIII_NAMESPACE_SEQUENCE = 0xffffffff;
-// Wiiicoin mainnet launched after the 2020 NSFIX deployment window had expired.
-// The live mempool therefore uses the pre-NSFIX namespace hash: HASH160(input txid),
-// without appending the input output index.
-export const WIII_NAMESPACE_INCLUDE_VOUT = false;
-export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
-"""
+          // Wiiicoin mainnet launched after the 2020 NSFIX deployment window had expired.
+          // The live mempool therefore uses the pre-NSFIX namespace hash: HASH160(input txid),
+          // without appending the input output index.
+          export const WIII_NAMESPACE_INCLUDE_VOUT = false;
+          export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
+          """
           if old not in text:
               raise SystemExit('Missing namespace constants anchor')
           text = text.replace(old, new, 1)
 
           old = """  const source = Buffer.concat([Buffer.from(txid, 'hex').reverse(), Buffer.from(String(vout), 'utf8')]);
-  const namespaceHash = bitcoin.crypto.hash160(source);
-"""
+            const namespaceHash = bitcoin.crypto.hash160(source);
+          """
           new = """  const txSource = Buffer.from(txid, 'hex').reverse();
-  const source = WIII_NAMESPACE_INCLUDE_VOUT ? Buffer.concat([txSource, Buffer.from(String(vout), 'utf8')]) : txSource;
-  const namespaceHash = bitcoin.crypto.hash160(source);
-"""
+            const source = WIII_NAMESPACE_INCLUDE_VOUT ? Buffer.concat([txSource, Buffer.from(String(vout), 'utf8')]) : txSource;
+            const namespaceHash = bitcoin.crypto.hash160(source);
+          """
           if old not in text:
               raise SystemExit('Missing namespace derivation anchor')
           text = text.replace(old, new, 1)
@@ -65,24 +69,24 @@ export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
               1,
           )
           old_test = """  it('derives the legacy-compatible namespace identifier from the first input', () => {
-    expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
-    expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
-    expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
-  });
-"""
+              expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
+              expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
+              expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
+            });
+          """
           new_test = """  it('uses the live pre-NSFIX namespace derivation without the output index', () => {
-    expect(WIII_NAMESPACE_INCLUDE_VOUT).toBe(false);
-    expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
-    expect(deriveNamespaceId(SOURCE_TXID, 1)).toBe(NAMESPACE_ID);
-    expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
-    expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
-  });
+              expect(WIII_NAMESPACE_INCLUDE_VOUT).toBe(false);
+              expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
+              expect(deriveNamespaceId(SOURCE_TXID, 1)).toBe(NAMESPACE_ID);
+              expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
+              expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
+            });
 
-  it('matches the live device funding input rejected by the NSFIX-era payload', () => {
-    expect(deriveNamespaceId(DEVICE_SOURCE_TXID, 0)).toBe(DEVICE_NAMESPACE_ID);
-    expect(uint8ArrayToHex(namespaceToPayload(DEVICE_NAMESPACE_ID))).toBe(DEVICE_NAMESPACE_PAYLOAD);
-  });
-"""
+            it('matches the live device funding input rejected by the NSFIX-era payload', () => {
+              expect(deriveNamespaceId(DEVICE_SOURCE_TXID, 0)).toBe(DEVICE_NAMESPACE_ID);
+              expect(uint8ArrayToHex(namespaceToPayload(DEVICE_NAMESPACE_ID))).toBe(DEVICE_NAMESPACE_PAYLOAD);
+            });
+          """
           if old_test not in test:
               raise SystemExit('Missing namespace derivation test anchor')
           test = test.replace(old_test, new_test, 1)
@@ -104,24 +108,24 @@ export const WIII_NAMESPACE_TRANSFER_KEY_PREFIX = '__WALLET_TRANSFER__';
 
           Path('docs/WIIICOIN_NAMESPACE_DERIVATION.md').write_text("""# Wiiicoin namespace derivation
 
-Wiiicoin Core derives a namespace identifier from the first funding input. The hash format depends on the `DEPLOYMENT_NSFIX` version-bits state.
+          Wiiicoin Core derives a namespace identifier from the first funding input. The hash format depends on the `DEPLOYMENT_NSFIX` version-bits state.
 
-Mainnet was created in September 2025, while the configured `DEPLOYMENT_NSFIX` signalling window ran from 15 July 2020 to 30 August 2020. The deployment therefore did not activate on the live chain. Its mempool uses the pre-NSFIX rule:
+          Mainnet was created in September 2025, while the configured `DEPLOYMENT_NSFIX` signalling window ran from 15 July 2020 to 30 August 2020. The deployment therefore did not activate on the live chain. Its mempool uses the pre-NSFIX rule:
 
-```text
-namespace payload = 0x35 || HASH160(reverse(input_0_txid))
-```
+          ```text
+          namespace payload = 0x35 || HASH160(reverse(input_0_txid))
+          ```
 
-The output index must not be appended. Appending the ASCII output index creates a different payload and `CWiiiMemPool::validateNamespace` rejects the transaction without a detailed validation-state message, which ElectrumX surfaces as `the transaction was rejected by network rules`.
+          The output index must not be appended. Appending the ASCII output index creates a different payload and `CWiiiMemPool::validateNamespace` rejects the transaction without a detailed validation-state message, which ElectrumX surfaces as `the transaction was rejected by network rules`.
 
-For the device funding input `5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee655747f8391bcdc842:0`, the live payload is:
+          For the device funding input `5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee655747f8391bcdc842:0`, the live payload is:
 
-```text
-355051a7934af8ef07459f61a8af5baac641465b45
-```
+          ```text
+          355051a7934af8ef07459f61a8af5baac641465b45
+          ```
 
-Its Base58Check namespace ID is `NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra`.
-""")
+          Its Base58Check namespace ID is `NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra`.
+          """)
           PY
 
       - name: Remove temporary workflow and trigger
