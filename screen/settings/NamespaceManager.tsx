@@ -42,7 +42,6 @@ const confirmTransaction = (message: string): Promise<boolean> =>
 
 const namespaceErrorMessage = (error: unknown): string => {
   if (error instanceof NamespaceRpcUnavailableError) return namespaceStrings.rpcUnavailable;
-  if (error instanceof Error) return error.message;
   return formatNamespaceError(error);
 };
 
