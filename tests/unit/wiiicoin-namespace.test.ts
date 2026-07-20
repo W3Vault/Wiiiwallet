@@ -9,6 +9,7 @@ import {
   namespaceToPayload,
   payloadToNamespace,
   WIII_NAMESPACE_FEE_RATE,
+  WIII_NAMESPACE_INCLUDE_VOUT,
   WIII_NAMESPACE_SEQUENCE,
   WIII_OP_DELETE,
   WIII_OP_NAMESPACE,
@@ -17,8 +18,11 @@ import {
 import { uint8ArrayToHex } from '../../blue_modules/uint8array-extras';
 
 const SOURCE_TXID = 'c70483b4613b18e750d0b1087ada28d713ad1e406ebc87d36f94063512c5f0dd';
-const NAMESPACE_ID = 'NaCaQWV7fnZDRFKVBhkhUvysEG1UKJvd1P';
-const NAMESPACE_PAYLOAD = '359cb5d1022c53411522ebe7f5b179772d0f1f54fd';
+const NAMESPACE_ID = 'NQTgCkBifLVXpFhtc4LVYr2aL1Pc3rymF2';
+const NAMESPACE_PAYLOAD = '3531dfa323f306ee13ba63fa2ab7c51a94160dabf5';
+const DEVICE_SOURCE_TXID = '5bf7201e9d2ca75dee17c38688a9183bf6016cb364b2ee655747f8391bcdc842';
+const DEVICE_NAMESPACE_ID = 'NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra';
+const DEVICE_NAMESPACE_PAYLOAD = '355051a7934af8ef07459f61a8af5baac641465b45';
 const OWNER_ADDRESS = 'sJFRHbqe5txzZ9VP88MGD6fkmjwRoEY8hK';
 
 describe('Wiiicoin namespace protocol', () => {
@@ -30,10 +34,17 @@ describe('Wiiicoin namespace protocol', () => {
     expect(WIII_NAMESPACE_SEQUENCE).toBe(0xffffffff);
   });
 
-  it('derives the legacy-compatible namespace identifier from the first input', () => {
+  it('uses the live pre-NSFIX namespace derivation without the output index', () => {
+    expect(WIII_NAMESPACE_INCLUDE_VOUT).toBe(false);
     expect(deriveNamespaceId(SOURCE_TXID, 0)).toBe(NAMESPACE_ID);
+    expect(deriveNamespaceId(SOURCE_TXID, 1)).toBe(NAMESPACE_ID);
     expect(uint8ArrayToHex(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_PAYLOAD);
     expect(payloadToNamespace(namespaceToPayload(NAMESPACE_ID))).toBe(NAMESPACE_ID);
+  });
+
+  it('matches the live device funding input rejected by the NSFIX-era payload', () => {
+    expect(deriveNamespaceId(DEVICE_SOURCE_TXID, 0)).toBe(DEVICE_NAMESPACE_ID);
+    expect(uint8ArrayToHex(namespaceToPayload(DEVICE_NAMESPACE_ID))).toBe(DEVICE_NAMESPACE_PAYLOAD);
   });
 
   it('builds a namespace creation script', () => {
