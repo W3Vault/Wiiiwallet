@@ -124,6 +124,13 @@ requireText('screen/settings/NamespaceManager.tsx', 'formatNamespaceError(error)
 requireText('screen/settings/NamespaceDetails.tsx', 'formatNamespaceError(error)', 'namespace mutation RPC error formatting');
 requireText('screen/settings/NamespaceManager.tsx', 'preflightNamespaceTransaction(transaction.tx)', 'namespace creation mempool preflight');
 requireText('screen/settings/NamespaceDetails.tsx', 'preflightNamespaceTransaction(transaction.tx)', 'namespace mutation mempool preflight');
+requireFile('blue_modules/wiiicoin-namespace-clipboard.ts');
+requireFile('tests/unit/wiiicoin-namespace-clipboard.test.ts');
+requireText('screen/settings/NamespaceDetails.tsx', 'copyNamespaceIdToClipboard(namespaceId)', 'namespace ID clipboard action');
+requireText('screen/settings/NamespaceDetails.tsx', 'testID="NamespaceIdCopy"', 'namespace ID copy row test ID');
+requireText('screen/settings/NamespaceDetails.tsx', 'isNamespaceIdCopied ? loc._.copied : namespaceId', 'namespace ID copied feedback');
+requireText('tests/unit/wiiicoin-namespace-clipboard.test.ts', 'NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra', 'complete namespace ID clipboard regression');
+requireText('loc/wiiicoinNamespace.ts', 'Copies the complete namespace ID to the clipboard.', 'namespace ID copy accessibility hint');
 requireText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.wiii.', 'WIII namespace documentation');
 forbidText('docs/WIIICOIN_NAMESPACES.md', 'blockchain.keva.', 'legacy namespace documentation');
 
