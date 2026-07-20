@@ -1,7 +1,8 @@
 import { useRoute, type RouteProp } from '@react-navigation/native';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
+import { copyNamespaceIdToClipboard } from '../../blue_modules/wiiicoin-namespace-clipboard';
 import { formatNamespaceError } from '../../blue_modules/wiiicoin-namespace-error';
 import { preflightNamespaceTransaction } from '../../blue_modules/wiiicoin-namespace-preflight';
 import triggerHapticFeedback, { HapticFeedbackTypes } from '../../blue_modules/hapticFeedback';
@@ -65,6 +66,8 @@ const NamespaceDetails: React.FC = () => {
   const [entries, setEntries] = useState<NamespaceKeyValue[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNamespaceIdCopied, setIsNamespaceIdCopied] = useState(false);
+  const namespaceIdCopyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshEntries = useCallback(async () => {
     setIsLoading(true);
@@ -82,6 +85,31 @@ const NamespaceDetails: React.FC = () => {
   useEffect(() => {
     refreshEntries().catch(() => {});
   }, [refreshEntries]);
+
+  useEffect(
+    () => () => {
+      if (namespaceIdCopyResetTimeoutRef.current) {
+        clearTimeout(namespaceIdCopyResetTimeoutRef.current);
+        namespaceIdCopyResetTimeoutRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const copyNamespaceId = useCallback(() => {
+    if (namespaceIdCopyResetTimeoutRef.current) {
+      clearTimeout(namespaceIdCopyResetTimeoutRef.current);
+      namespaceIdCopyResetTimeoutRef.current = null;
+    }
+
+    copyNamespaceIdToClipboard(namespaceId);
+    triggerHapticFeedback(HapticFeedbackTypes.Selection);
+    setIsNamespaceIdCopied(true);
+    namespaceIdCopyResetTimeoutRef.current = setTimeout(() => {
+      namespaceIdCopyResetTimeoutRef.current = null;
+      setIsNamespaceIdCopied(false);
+    }, 1500);
+  }, [namespaceId]);
 
   const broadcastMutation = useCallback(
     async (createTransaction: () => Promise<NamespaceTransactionResult>, successMessage: string, leaveScreen = false) => {
@@ -190,7 +218,15 @@ const NamespaceDetails: React.FC = () => {
     <SettingsScrollView>
       <SettingsSectionHeader title={namespaceStrings.detailsTitle} />
       <SettingsSection horizontalInset={false}>
-        <SettingsListItem title={namespaceStrings.namespaceId} subtitle={namespaceId} position={ownerAddress ? 'first' : 'single'} />
+        <SettingsListItem
+          title={namespaceStrings.namespaceId}
+          subtitle={isNamespaceIdCopied ? loc._.copied : namespaceId}
+          onPress={copyNamespaceId}
+          testID="NamespaceIdCopy"
+          accessibilityLabel={`${namespaceStrings.namespaceId}. ${namespaceId}`}
+          accessibilityHint={namespaceStrings.copyNamespaceIdHint}
+          position={ownerAddress ? 'first' : 'single'}
+        />
         {ownerAddress ? <SettingsListItem title={namespaceStrings.ownerAddress} subtitle={ownerAddress} position="last" /> : null}
       </SettingsSection>
 

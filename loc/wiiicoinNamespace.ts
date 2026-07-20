@@ -23,6 +23,7 @@ const namespaceStrings = {
   deletePrompt: 'Enter the key to delete.',
   transferPrompt: 'Enter the destination wrapped SegWit address.',
   namespaceId: 'Namespace ID',
+  copyNamespaceIdHint: 'Copies the complete namespace ID to the clipboard.',
   ownerAddress: 'Control address',
   confirmTitle: 'Confirm namespace transaction',
   confirmFee: (fee: number) => `Network fee: ${(fee / 100_000_000).toFixed(8)} WIII`,
