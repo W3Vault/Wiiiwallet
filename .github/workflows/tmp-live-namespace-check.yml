@@ -1,0 +1,36 @@
+name: Temporary live namespace check
+
+on:
+  push:
+    branches:
+      - agent/copy-namespace-id
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-namespace:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Query live namespace key/value API
+        shell: bash
+        env:
+          NAMESPACE_ID: NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra
+          NAMESPACE_KEY: test1.json
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --location --get \
+            --data-urlencode "n=${NAMESPACE_ID}" \
+            --data-urlencode "k=${NAMESPACE_KEY}" \
+            https://www.wiiicoin.io/api/wg)"
+          printf 'Live response: %s\n' "$response"
+          RESPONSE="$response" python3 - <<'PY'
+          import json
+          import os
+
+          response = os.environ['RESPONSE']
+          data = json.loads(response)
+          assert isinstance(data, dict), f'Expected JSON object, received {type(data).__name__}'
+          assert data.get('value') == 'test', f'Unexpected key/value response: {data!r}'
+          print('Verified namespace NTEf4Zbft422WDxDMtNyM7PQypemYtB5Ra key test1.json has value {"value":"test"}.')
+          PY
