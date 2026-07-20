@@ -1,15 +1,17 @@
-const setString = jest.fn();
-
-jest.mock('@react-native-clipboard/clipboard', () => ({
-  __esModule: true,
-  default: { setString },
-}));
+import Clipboard from '@react-native-clipboard/clipboard';
 
 import { copyNamespaceIdToClipboard } from '../../blue_modules/wiiicoin-namespace-clipboard';
 
+jest.mock('@react-native-clipboard/clipboard', () => ({
+  __esModule: true,
+  default: { setString: jest.fn() },
+}));
+
+const mockSetString = Clipboard.setString as jest.MockedFunction<typeof Clipboard.setString>;
+
 describe('Wiiicoin namespace clipboard', () => {
   beforeEach(() => {
-    setString.mockClear();
+    mockSetString.mockClear();
   });
 
   it('copies the complete namespace ID without truncation', () => {
@@ -17,7 +19,7 @@ describe('Wiiicoin namespace clipboard', () => {
 
     copyNamespaceIdToClipboard(namespaceId);
 
-    expect(setString).toHaveBeenCalledTimes(1);
-    expect(setString).toHaveBeenCalledWith(namespaceId);
+    expect(mockSetString).toHaveBeenCalledTimes(1);
+    expect(mockSetString).toHaveBeenCalledWith(namespaceId);
   });
 });
