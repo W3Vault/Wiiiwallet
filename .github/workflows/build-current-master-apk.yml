@@ -1,0 +1,151 @@
+name: Build current master APK
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-current-master-apk-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.event.pull_request.head.ref == 'agent/build-current-master-apk'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      ORG_GRADLE_PROJECT_reactNativeArchitectures: arm64-v8a
+      SKIP_APP_STORE_CONNECT_AUTH: '1'
+
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify application source matches current master
+        env:
+          MASTER_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --name-only "$MASTER_SHA"...HEAD | tee changed-files.txt
+          test "$(cat changed-files.txt)" = '.github/workflows/build-current-master-apk.yml'
+          echo "Application source matches master commit $MASTER_SHA"
+
+      - name: Free disk space
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android/sdk/ndk || true
+          sudo rm -rf /usr/local/lib/android/sdk/system-images /usr/local/lib/android/sdk/emulator || true
+          docker system prune -af || true
+          df -h
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0" "ndk;28.2.13676358"
+
+      - name: Install JavaScript dependencies
+        run: npm ci --yes
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4.10'
+          bundler-cache: true
+
+      - name: Verify consolidated Wiiiwallet source
+        run: node scripts/audit-wiiiwallet-consolidation.mjs
+
+      - name: Generate build number
+        id: build_number
+        shell: bash
+        run: echo "build_number=$(date +%s)" >> "$GITHUB_OUTPUT"
+
+      - name: Build and sign release APK
+        shell: bash
+        env:
+          BUILD_NUMBER: ${{ steps.build_number.outputs.build_number }}
+          KEYSTORE_FILE_HEX: ${{ secrets.KEYSTORE_FILE_HEX }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEYSTORE_FILE_HEX:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ]; then
+            bundle exec fastlane android build_release_apk
+          else
+            bundle exec fastlane android build_release_apk auto_credentials:true
+          fi
+
+      - name: Verify and package APK
+        env:
+          MASTER_SHA: ${{ github.event.pull_request.base.sha }}
+          BUILD_NUMBER: ${{ steps.build_number.outputs.build_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_PATH=$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name 'Wiiiwallet-*.apk' | head -n 1)
+          test -n "$APK_PATH"
+          test -s "$APK_PATH"
+
+          APKSIGNER=$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          test -n "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "$APK_PATH" | tee signing-certificate.txt
+
+          APKANALYZER=$(find "$ANDROID_SDK_ROOT" -name apkanalyzer -type f | head -n 1 || true)
+          if [ -n "$APKANALYZER" ]; then
+            DEBUGGABLE=$($APKANALYZER manifest debuggable "$APK_PATH")
+            test "$DEBUGGABLE" = 'false'
+          else
+            DEBUGGABLE='false (release variant; apkanalyzer unavailable)'
+          fi
+
+          mkdir -p release-apk
+          cp "$APK_PATH" release-apk/Wiiiwallet-current-master-arm64.apk
+          cp signing-certificate.txt release-apk/signing-certificate.txt
+          sha256sum release-apk/Wiiiwallet-current-master-arm64.apk > release-apk/SHA256SUMS.txt
+          cat > release-apk/BUILD-INFO.txt <<EOF
+          Wiiiwallet current master Android build
+
+          Master source commit: $MASTER_SHA
+          Workflow-only branch commit: $GITHUB_SHA
+          Build number: $BUILD_NUMBER
+          Build type: release
+          Debuggable: $DEBUGGABLE
+          Requested architecture: arm64-v8a
+          Namespace ID tap-to-copy: included
+          Distribution: direct testing APK
+          EOF
+          cat release-apk/BUILD-INFO.txt
+          cat release-apk/SHA256SUMS.txt
+
+      - name: Upload current master APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wiiiwallet-current-master-arm64
+          path: release-apk
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
