@@ -1,6 +1,10 @@
 name: Tests e2e Android
 
-on: [pull_request]
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
@@ -11,6 +15,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'e2e')
     runs-on: ubuntu-24.04
 
     steps:
@@ -73,7 +78,7 @@ jobs:
       with:
         name: bluewallet-android-apks
         path: bluewallet-android-apks.tar.gz
-        retention-days: 3
+        retention-days: 1
         compression-level: 0
         if-no-files-found: error
 
@@ -150,3 +155,4 @@ jobs:
       with:
         name: e2e-android-videos
         path: ${{ github.workspace }}/artifacts
+        retention-days: 3
