@@ -1,6 +1,10 @@
 name: Tests e2e iOS
 
-on: [pull_request]
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    types: [labeled, synchronize, reopened]
 
 permissions:
   contents: read
@@ -11,6 +15,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'e2e') || contains(github.event.pull_request.labels.*.name, 'e2e-ios')
     runs-on: macos-26
     env:
       BUILD_CONFIGURATION: Release
@@ -155,7 +160,7 @@ jobs:
         with:
           name: bluewallet-ios-app
           path: BlueWallet.app.tar.gz
-          retention-days: 3
+          retention-days: 1
           compression-level: 0
           if-no-files-found: error
 
@@ -195,7 +200,6 @@ jobs:
           mkdir -p ios/build/Build/Products/Release-iphonesimulator
           tar -xzf BlueWallet.app.tar.gz -C ios/build/Build/Products/Release-iphonesimulator
 
-      # Pre-boot simulator so first detox launchApp lands warm.
       - name: Pre-boot iOS simulator
         run: |
           DEVICE_TYPE=$(jq -r '.devices.simulator.device.type' .detoxrc.json)
@@ -208,7 +212,6 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl launch "$UDID" com.apple.springboard >/dev/null 2>&1 || true
 
-      # Cut animations so detox sync stays steady on slow CI VMs; Reduce Motion makes reanimated skip to final value.
       - name: Disable simulator animations
         run: |
           defaults write com.apple.iphonesimulator SlowMotionAnimation -bool NO
@@ -232,3 +235,4 @@ jobs:
         with:
           name: e2e-ios-videos
           path: ./artifacts/
+          retention-days: 3

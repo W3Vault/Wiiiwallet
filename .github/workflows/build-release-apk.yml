@@ -1,17 +1,22 @@
 name: BuildReleaseApk
 
 on:
-  pull_request:
-    branches:
-      - master
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_dispatch:
   push:
-    branches:
-      - master
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiiiwallet-release-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   buildReleaseApk:
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
 
     steps:
       - name: Checkout project
@@ -110,6 +115,7 @@ jobs:
             android/**/outputs/logs/**/*.log
             android/**/reports/**/*.log
           if-no-files-found: warn
+          retention-days: 3
 
       - name: Determine APK Filename and Path
         id: determine_apk_path
@@ -135,39 +141,4 @@ jobs:
           name: signed-apk
           path: ${{ env.APK_PATH }}
           if-no-files-found: error
-
-  browserstack:
-    runs-on: macos-26
-    needs: buildReleaseApk
-    if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'browserstack') }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1.316.0
-        with:
-          ruby-version: 3.4.10
-          bundler-cache: true
-
-      - name: Install dependencies with Bundler
-        run: bundle install --jobs 4 --retry 3
-
-      - name: Download APK artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: signed-apk
-
-      - name: Set APK Path
-        run: |
-          APK_PATH=$(find ${{ github.workspace }} -name '*.apk')
-          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-
-      - name: Upload APK to BrowserStack and Post PR Comment
-        env:
-          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
-          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
-          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bundle exec fastlane upload_to_browserstack_and_comment
+          retention-days: 3
